@@ -1,16 +1,27 @@
 import CloudKit
 import CoreData
 import Domain
+import Foundation
 import Persistence
 
-public enum SharingError: Error {
+public enum SharingError: LocalizedError {
     case noBusiness
     case notCloudKitContainer
+    case notOwner
+
+    public var errorDescription: String? {
+        switch self {
+        case .noBusiness: "Set up your business before inviting people."
+        case .notCloudKitContainer: "Sharing needs iCloud."
+        case .notOwner: "Only the business owner can invite people."
+        }
+    }
 }
 
 public final class CloudKitBusinessSharing: BusinessSharing, @unchecked Sendable {
     private let controller: PersistenceController
     private let containerIdentifier: String
+    @MainActor private var pendingShare: Task<CKShare, Error>?
 
     public init(controller: PersistenceController, containerIdentifier: String) {
         self.controller = controller
@@ -38,7 +49,11 @@ public final class CloudKitBusinessSharing: BusinessSharing, @unchecked Sendable
             guard participant.role != .owner,
                   participant.acceptanceStatus == .accepted,
                   let recordName = participant.userIdentity.userRecordID?.recordName else { return nil }
-            let name = participant.userIdentity.nameComponents.map { formatter.string(from: $0) } ?? ""
+            let identity = participant.userIdentity
+            var name = identity.nameComponents.map { formatter.string(from: $0) } ?? ""
+            if name.isEmpty {
+                name = identity.lookupInfo?.emailAddress ?? identity.lookupInfo?.phoneNumber ?? ""
+            }
             return ShareParticipantInfo(recordName: recordName, displayName: name)
         }
     }
@@ -49,18 +64,33 @@ public final class CloudKitBusinessSharing: BusinessSharing, @unchecked Sendable
         _ = try await cloudContainer.acceptShareInvitations(from: [metadata], into: controller.sharedStore)
     }
 
+    /// The Business zone share, or nil when there is none yet or the current user is a member rather than the owner.
     @MainActor
     private func currentShare() throws -> CKShare? {
         guard let cloudContainer else { throw SharingError.notCloudKitContainer }
-        guard let business = try cloudContainer.viewContext.fetchBusinessObject() else { return nil }
+        guard let business = try cloudContainer.viewContext.fetchBusinessObject(),
+              business.objectID.persistentStore === controller.privateStore else { return nil }
         return try cloudContainer.fetchShares(matching: [business.objectID])[business.objectID]
     }
 
+    /// Concurrent callers share one in-flight request so a double tap cannot create two shares.
     @MainActor
     private func existingOrNewShare() async throws -> CKShare {
+        if let pendingShare { return try await pendingShare.value }
+        let task = Task { @MainActor in try await self.makeShareIfNeeded() }
+        pendingShare = task
+        defer { pendingShare = nil }
+        return try await task.value
+    }
+
+    @MainActor
+    private func makeShareIfNeeded() async throws -> CKShare {
         guard let cloudContainer else { throw SharingError.notCloudKitContainer }
         guard let business = try cloudContainer.viewContext.fetchBusinessObject() else {
             throw SharingError.noBusiness
+        }
+        guard business.objectID.persistentStore === controller.privateStore else {
+            throw SharingError.notOwner
         }
         if let existing = try currentShare() { return existing }
 
@@ -68,7 +98,6 @@ public final class CloudKitBusinessSharing: BusinessSharing, @unchecked Sendable
         let name = business.value(forKey: "name") as? String ?? "Alabaster Nutrition"
         share[CKShare.SystemFieldKey.title] = name as CKRecordValue
         share.publicPermission = .none
-        _ = try await cloudContainer.persistUpdatedShare(share, in: controller.privateStore)
-        return share
+        return try await cloudContainer.persistUpdatedShare(share, in: controller.privateStore)
     }
 }
