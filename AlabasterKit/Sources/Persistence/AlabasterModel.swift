@@ -1,5 +1,6 @@
 import CoreData
 
+/// Once the CloudKit schema is deployed, changes must be additive: new optional/defaulted attributes or entities only; never rename or remove.
 public enum AlabasterModel {
     /// One shared instance: multiple model instances with the same entities confuse Core Data.
     public static let shared: NSManagedObjectModel = makeModel()

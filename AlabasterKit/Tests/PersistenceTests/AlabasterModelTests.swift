@@ -31,6 +31,9 @@ struct AlabasterModelTests {
                 #expect(relationship.isOptional, "\(label) optional")
                 #expect(!relationship.isOrdered, "\(label) unordered")
                 #expect(relationship.inverseRelationship != nil, "\(label) inverse")
+                #expect(relationship.deleteRule != .denyDeleteRule, "\(label) not deny")
+                #expect(relationship.inverseRelationship?.inverseRelationship === relationship, "\(label) symmetric inverse")
+                #expect(relationship.inverseRelationship?.entity === relationship.destinationEntity, "\(label) inverse on destination")
             }
         }
     }
