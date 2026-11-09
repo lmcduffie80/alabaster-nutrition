@@ -2,6 +2,7 @@ import CloudKit
 import CoreData
 import Domain
 import Foundation
+import os
 import Persistence
 
 public enum SharingError: LocalizedError {
@@ -33,12 +34,26 @@ public final class CloudKitBusinessSharing: BusinessSharing, @unchecked Sendable
     }
 
     public func isICloudAvailable() async -> Bool {
-        (try? await CKContainer(identifier: containerIdentifier).accountStatus()) == .available
+        do {
+            let status = try await CKContainer(identifier: containerIdentifier).accountStatus()
+            if status != .available {
+                Logger.sharing.notice("iCloud account status is \(status.rawValue, privacy: .public), not available")
+            }
+            return status == .available
+        } catch {
+            Logger.sharing.error("iCloud account status check failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
     }
 
     public func shareItem() -> BusinessShareItem {
         BusinessShareItem(containerIdentifier: containerIdentifier) { [self] in
-            try await existingOrNewShare()
+            do {
+                return try await existingOrNewShare()
+            } catch {
+                Logger.sharing.error("Share creation failed: \(error.localizedDescription, privacy: .public)")
+                throw error
+            }
         }
     }
 

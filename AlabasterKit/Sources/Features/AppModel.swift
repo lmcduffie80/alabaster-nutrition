@@ -1,5 +1,6 @@
 import Domain
 import Observation
+import os
 import Persistence
 import Sharing
 
@@ -69,7 +70,11 @@ public final class AppModel {
         do {
             membership = try await repository.membership()
             if case .owner = membership {
-                try? await reconcileParticipants()
+                do {
+                    try await reconcileParticipants()
+                } catch {
+                    Logger.app.error("Adding accepted participants failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             employees = membership.business == nil ? [] : try await repository.employees()
             if membership != .none {
@@ -96,6 +101,7 @@ public final class AppModel {
         do {
             try await accept()
         } catch {
+            Logger.app.error("Accepting an invite failed: \(error.localizedDescription, privacy: .public)")
             isJoining = false
             showError("The invite couldn't be accepted: \(error.localizedDescription)")
             return
