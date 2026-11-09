@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+import Persistence
 import Testing
 @testable import Features
 
@@ -25,6 +26,28 @@ struct AppModelTests {
         try await model.createBusiness(.alabasterDefaults(ownerName: "Owner", payPeriodAnchor: .now))
         #expect(model.role == .manager)
         #expect(model.employees.map(\.displayName) == ["Owner"])
+    }
+
+    @Test func aFailedCreateReachesTheCallerAndKeepsSetup() async {
+        let repository = FakeBusinessRepository()
+        await repository.failCreate(with: BusinessRepositoryError.businessAlreadyExists)
+        let model = AppModel(repository: repository, sharing: FakeSharing())
+        await model.refresh()
+
+        await #expect(throws: BusinessRepositoryError.businessAlreadyExists) {
+            try await model.createBusiness(.alabasterDefaults(ownerName: "Owner", payPeriodAnchor: .now))
+        }
+        #expect(model.loadState == .loaded)
+        #expect(model.role == .needsSetup)
+    }
+
+    @Test func aMembershipFailureShowsItsMessage() async {
+        let repository = FakeBusinessRepository()
+        await repository.failMembership(with: PersistenceError.storeMissing)
+        let model = AppModel(repository: repository, sharing: FakeSharing())
+        await model.refresh()
+
+        #expect(model.loadState == .failed("The app's data couldn't be opened. Restart the app and try again."))
     }
 
     @Test func ownerRefreshAddsNewlyAcceptedParticipants() async {

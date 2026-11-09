@@ -8,15 +8,24 @@ actor FakeBusinessRepository: BusinessRepository {
     private(set) var membershipValue: Membership = .none
     private(set) var employeeList: [Employee] = []
     private(set) var added: [NewEmployee] = []
+    private var membershipError: (any Error)?
+    private var createError: (any Error)?
 
     func setMembership(_ membership: Membership, employees: [Employee]) {
         membershipValue = membership
         employeeList = employees
     }
 
-    func membership() async throws -> Membership { membershipValue }
+    func failMembership(with error: (any Error)?) { membershipError = error }
+    func failCreate(with error: (any Error)?) { createError = error }
+
+    func membership() async throws -> Membership {
+        if let membershipError { throw membershipError }
+        return membershipValue
+    }
 
     func createBusiness(from draft: BusinessDraft) async throws -> Business {
+        if let createError { throw createError }
         let business = Business(
             id: UUID(), name: draft.name, timeZoneIdentifier: draft.timeZoneIdentifier,
             payPeriodRule: draft.payPeriodRule, payPeriodAnchor: draft.payPeriodAnchor,
