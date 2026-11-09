@@ -15,4 +15,10 @@ struct BrandFontsTests {
             #expect(CTFontCopyPostScriptName(font) as String == name)
         }
     }
+
+    @Test func headingsUseTheRegularWeight() {
+        BrandFonts.registerAll()
+        #expect(BrandFonts.registeredPostScriptNames[BrandFonts.serifFile] == "CormorantGaramond-Regular")
+        #expect(BrandFonts.registeredPostScriptNames[BrandFonts.scriptFile] == "Allura-Regular")
+    }
 }
