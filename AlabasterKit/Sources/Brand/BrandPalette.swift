@@ -8,16 +8,20 @@ import AppKit
 public struct BrandColor: Sendable {
     public let light: String
     public let dark: String
+    public let color: Color
 
     public init(light: String, dark: String) {
+        assert(HexColor.parse(light) != nil && HexColor.parse(dark) != nil, "Invalid brand hex: \(light) / \(dark)")
         self.light = light
         self.dark = dark
+        let fallback = RGBA(red: 0, green: 0, blue: 0, alpha: 1)
+        self.color = Self.makeColor(
+            light: HexColor.parse(light) ?? fallback,
+            dark: HexColor.parse(dark) ?? fallback
+        )
     }
 
-    public var color: Color {
-        let fallback = RGBA(red: 0, green: 0, blue: 0, alpha: 1)
-        let light = HexColor.parse(light) ?? fallback
-        let dark = HexColor.parse(dark) ?? fallback
+    private static func makeColor(light: RGBA, dark: RGBA) -> Color {
         #if canImport(UIKit)
         return Color(uiColor: UIColor { traits in
             let c = traits.userInterfaceStyle == .dark ? dark : light
@@ -34,6 +38,10 @@ public struct BrandColor: Sendable {
 }
 
 /// Colors estimated from the Alabaster Nutrition Facebook page. Replace hex values when official ones arrive.
+///
+/// Safe for body text: `ink` on `alabaster` or `sage`, `porcelain` on `alabaster`.
+/// Large text only (18pt+): `porcelain` on `sage`. Decorative only: `gilt`, `sage` as a foreground.
+/// `employeeColors` are fill and indicator colors, not text colors.
 public enum BrandPalette {
     public static let porcelain = BrandColor(light: "#3E5C9A", dark: "#8FA8DA")
     public static let sage = BrandColor(light: "#A9BC98", dark: "#3E4B38")
@@ -44,10 +52,10 @@ public enum BrandPalette {
     public static let all: [BrandColor] = [porcelain, sage, alabaster, ink, gilt]
 
     public static let employeeColors: [BrandColor] = [
-        BrandColor(light: "#3E5C9A", dark: "#8FA8DA"),
-        BrandColor(light: "#7E9A6A", dark: "#A9BC98"),
+        porcelain,
+        BrandColor(light: "#6C8659", dark: "#A9BC98"),
         BrandColor(light: "#5B7FC2", dark: "#A3BCE8"),
-        BrandColor(light: "#9C7A3C", dark: "#C9A764"),
+        gilt,
         BrandColor(light: "#2E4470", dark: "#7690C8"),
         BrandColor(light: "#5F7F73", dark: "#93B5A8"),
         BrandColor(light: "#8A6F9E", dark: "#B9A2CB"),
