@@ -6,3 +6,4 @@ DerivedData/
 node_modules/
 .env*.local
 .vercel
+.worktrees/
