@@ -2742,6 +2742,9 @@ git commit -m "feat(app): add iOS and macOS app shell with invite acceptance"
 | 5 | A: relaunch or wait for sync | B appears in the Team list with a color dot |
 | 6 | B: sign out of iCloud, launch app | "Sign in to iCloud" screen |
 | 7 | Repeat 1–2 on Mac signed in as A | Mac shows the same Team list |
+| 8 | B: on the Employee screen, check the share permission (Settings → Apple Account → iCloud → shared items, or the share sheet's participant list on A) | B is listed as "Can view" (read-only) |
+| 9 | A: after B appears, in a debug build log `fetchShares(matching: [employee.objectID])` for B's Employee record | Returns the Business share (employees added after sharing land in the shared zone) |
+| 10 | A: tap Invite Employees twice quickly | One sheet; CloudKit Console shows a single `cloudkit.share` record |
 
 - [ ] **Step 4: Record results** in `docs/superpowers/plans/2026-11-08-milestone-1-foundation.md` under a new `## Test log` heading (date, devices, pass/fail per row) and commit:
 
