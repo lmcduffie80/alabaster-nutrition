@@ -15,9 +15,13 @@ public extension NSManagedObjectContext {
         return try fetch(request).first
     }
 
-    func fetchEmployeeObjects() throws -> [NSManagedObject] {
+    func fetchEmployeeObjects(for business: NSManagedObject) throws -> [NSManagedObject] {
         let request = NSFetchRequest<NSManagedObject>(entityName: EntityName.employee)
-        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
+        request.predicate = NSPredicate(format: "business == %@", business)
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "createdAt", ascending: true),
+            NSSortDescriptor(key: "displayName", ascending: true),
+        ]
         return try fetch(request)
     }
 }

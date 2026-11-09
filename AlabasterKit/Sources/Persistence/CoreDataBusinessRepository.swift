@@ -12,27 +12,31 @@ public final class CoreDataBusinessRepository: BusinessRepository, @unchecked Se
     }
 
     public func membership() async throws -> Membership {
-        let context = controller.container.newBackgroundContext()
-        let privateStore = controller.privateStore
+        let controller = controller
+        let context = controller.newBackgroundContext()
         return try await context.perform {
             guard let object = try context.fetchBusinessObject() else { return .none }
             let business = Mapping.business(from: object)
-            return object.objectID.persistentStore === privateStore ? .owner(business) : .member(business)
+            return object.objectID.persistentStore === controller.privateStore ? .owner(business) : .member(business)
         }
     }
 
+    /// The duplicate check only sees data already synced to this device. A new device that runs this before its
+    /// initial CloudKit import finishes can create a second business; the earliest `createdAt` wins and
+    /// `employees()` is scoped to it.
     public func createBusiness(from draft: BusinessDraft) async throws -> Business {
         let errors = draft.validationErrors()
         guard errors.isEmpty else { throw BusinessRepositoryError.invalidDraft(errors) }
 
-        let context = controller.container.newBackgroundContext()
-        let privateStore = controller.privateStore
+        let controller = controller
+        let context = controller.newBackgroundContext()
         let createdAt = now()
         return try await context.perform {
             if try context.fetchBusinessObject() != nil {
                 throw BusinessRepositoryError.businessAlreadyExists
             }
 
+            let privateStore = controller.privateStore
             let business = NSEntityDescription.insertNewObject(forEntityName: EntityName.business, into: context)
             context.assign(business, to: privateStore)
             business.setValue(UUID(), forKey: "id")
@@ -62,9 +66,10 @@ public final class CoreDataBusinessRepository: BusinessRepository, @unchecked Se
     }
 
     public func employees() async throws -> [Employee] {
-        let context = controller.container.newBackgroundContext()
+        let context = controller.newBackgroundContext()
         return try await context.perform {
-            try context.fetchEmployeeObjects().map(Mapping.employee(from:))
+            guard let business = try context.fetchBusinessObject() else { return [] }
+            return try context.fetchEmployeeObjects(for: business).map(Mapping.employee(from:))
         }
     }
 

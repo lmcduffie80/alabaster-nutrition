@@ -56,6 +56,12 @@ public final class PersistenceController: @unchecked Sendable {
         self.sharedStore = sharedStore
     }
 
+    public func newBackgroundContext() -> NSManagedObjectContext {
+        let context = container.newBackgroundContext()
+        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        return context
+    }
+
     /// Debug-only: pushes the record types to the CloudKit development environment.
     public func initializeCloudKitSchema() throws {
         try (container as? NSPersistentCloudKitContainer)?.initializeCloudKitSchema(options: [])
@@ -73,7 +79,7 @@ public final class PersistenceController: @unchecked Sendable {
         scope: CKDatabase.Scope,
         containerIdentifier: String
     ) -> NSPersistentStoreDescription {
-        let url = NSPersistentContainer.defaultDirectoryURL().appendingPathComponent("\(name).sqlite")
+        let url = NSPersistentContainer.defaultDirectoryURL().appendingPathComponent("Alabaster-\(name).sqlite")
         let description = NSPersistentStoreDescription(url: url)
         let options = NSPersistentCloudKitContainerOptions(containerIdentifier: containerIdentifier)
         options.databaseScope = scope

@@ -68,7 +68,7 @@ struct CoreDataBusinessRepositoryTests {
 
     @Test func aBusinessSharedWithTheUserMeansMembership() async throws {
         let (repository, controller) = try makeRepository()
-        let context = controller.container.newBackgroundContext()
+        let context = controller.newBackgroundContext()
         try await context.perform {
             let object = NSEntityDescription.insertNewObject(forEntityName: EntityName.business, into: context)
             context.assign(object, to: controller.sharedStore)
@@ -83,5 +83,60 @@ struct CoreDataBusinessRepositoryTests {
             return
         }
         #expect(business.name == "Alabaster Nutrition")
+    }
+
+    @Test func aMemberCannotCreateABusiness() async throws {
+        let (repository, controller) = try makeRepository()
+        let context = controller.newBackgroundContext()
+        try await context.perform {
+            let object = NSEntityDescription.insertNewObject(forEntityName: EntityName.business, into: context)
+            context.assign(object, to: controller.sharedStore)
+            object.setValue(UUID(), forKey: "id")
+            object.setValue("Alabaster Nutrition", forKey: "name")
+            object.setValue(Date(), forKey: "createdAt")
+            try context.save()
+        }
+
+        await #expect(throws: BusinessRepositoryError.businessAlreadyExists) {
+            try await repository.createBusiness(from: draft())
+        }
+    }
+
+    @Test func namesAreTrimmedWhenStored() async throws {
+        let (repository, _) = try makeRepository()
+        var padded = draft()
+        padded.name = "  Alabaster Nutrition "
+        padded.ownerName = " Owner "
+
+        let created = try await repository.createBusiness(from: padded)
+
+        #expect(created.name == "Alabaster Nutrition")
+        #expect(try await repository.employees().first?.displayName == "Owner")
+    }
+
+    @Test func employeesAreScopedToTheEarliestBusiness() async throws {
+        let (repository, controller) = try makeRepository()
+        _ = try await repository.createBusiness(from: draft())
+
+        let context = controller.newBackgroundContext()
+        try await context.perform {
+            let later = Date().addingTimeInterval(3_600)
+            let business = NSEntityDescription.insertNewObject(forEntityName: EntityName.business, into: context)
+            context.assign(business, to: controller.privateStore)
+            business.setValue(UUID(), forKey: "id")
+            business.setValue("Duplicate", forKey: "name")
+            business.setValue(later, forKey: "createdAt")
+
+            let employee = NSEntityDescription.insertNewObject(forEntityName: EntityName.employee, into: context)
+            context.assign(employee, to: controller.privateStore)
+            employee.setValue(UUID(), forKey: "id")
+            employee.setValue("Stranger", forKey: "displayName")
+            employee.setValue(later, forKey: "createdAt")
+            employee.setValue(business, forKey: "business")
+            try context.save()
+        }
+
+        let employees = try await repository.employees()
+        #expect(employees.map(\.displayName) == ["Owner"])
     }
 }
