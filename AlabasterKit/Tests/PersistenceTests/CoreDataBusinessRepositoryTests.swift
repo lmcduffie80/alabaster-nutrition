@@ -141,6 +141,37 @@ struct CoreDataBusinessRepositoryTests {
         #expect(employees.map(\.displayName) == ["Owner"])
     }
 
+    @Test func employeesAddedOnTwoDevicesCollapseToTheEarliest() async throws {
+        let (repository, controller) = try makeRepository()
+        _ = try await repository.createBusiness(from: draft())
+
+        let context = controller.newBackgroundContext()
+        let earlierID = UUID()
+        try await context.perform {
+            guard let business = try context.fetchBusinessObject() else { return }
+            for (id, offset) in [(UUID(), 7_200.0), (earlierID, 3_600.0)] {
+                let employee = NSEntityDescription.insertNewObject(forEntityName: EntityName.employee, into: context)
+                context.assign(employee, to: controller.privateStore)
+                employee.setValue(id, forKey: "id")
+                employee.setValue("Jordan Lee", forKey: "displayName")
+                employee.setValue(EmployeeRole.employee.rawValue, forKey: "role")
+                employee.setValue("_a", forKey: "participantRecordName")
+                employee.setValue(anchor.addingTimeInterval(offset), forKey: "createdAt")
+                employee.setValue(business, forKey: "business")
+            }
+            try context.save()
+        }
+
+        let employees = try await repository.employees()
+        #expect(employees.map(\.participantRecordName) == [nil, "_a"])
+        #expect(employees.last?.id == earlierID)
+
+        try await repository.addEmployees([
+            NewEmployee(displayName: "Jordan Lee", participantRecordName: "_a", colorIndex: 1),
+        ])
+        #expect(try await repository.employees().count == 2)
+    }
+
     @Test func theOwnerCanAddEmployees() async throws {
         let (repository, _) = try makeRepository()
         _ = try await repository.createBusiness(from: draft())

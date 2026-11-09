@@ -65,11 +65,19 @@ public final class CoreDataBusinessRepository: BusinessRepository, @unchecked Se
         }
     }
 
+    /// Two owner devices can each add the same participant before they sync; like the business itself,
+    /// the earliest row wins. Rows without a participant (the owner) are never collapsed.
     public func employees() async throws -> [Employee] {
         let context = controller.newBackgroundContext()
         return try await context.perform {
             guard let business = try context.fetchBusinessObject() else { return [] }
-            return try context.fetchEmployeeObjects(for: business).map(Mapping.employee(from:))
+            var seenParticipants = Set<String>()
+            return try context.fetchEmployeeObjects(for: business)
+                .map(Mapping.employee(from:))
+                .filter { employee in
+                    guard let participant = employee.participantRecordName else { return true }
+                    return seenParticipants.insert(participant).inserted
+                }
         }
     }
 
