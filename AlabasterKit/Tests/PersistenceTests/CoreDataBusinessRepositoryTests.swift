@@ -9,7 +9,8 @@ struct CoreDataBusinessRepositoryTests {
 
     func makeRepository() throws -> (CoreDataBusinessRepository, PersistenceController) {
         let controller = try PersistenceController(mode: .inMemory)
-        return (CoreDataBusinessRepository(controller: controller), controller)
+        let clock = StepClock(start: anchor)
+        return (CoreDataBusinessRepository(controller: controller, now: { clock() }), controller)
     }
 
     func draft() -> BusinessDraft {
@@ -119,8 +120,8 @@ struct CoreDataBusinessRepositoryTests {
         _ = try await repository.createBusiness(from: draft())
 
         let context = controller.newBackgroundContext()
+        let later = anchor.addingTimeInterval(3_600)
         try await context.perform {
-            let later = Date().addingTimeInterval(3_600)
             let business = NSEntityDescription.insertNewObject(forEntityName: EntityName.business, into: context)
             context.assign(business, to: controller.privateStore)
             business.setValue(UUID(), forKey: "id")
@@ -191,5 +192,23 @@ struct CoreDataBusinessRepositoryTests {
         ])
 
         #expect(try await repository.employees().last?.displayName == "Jordan Lee")
+    }
+
+    @Test func participantsAlreadyAddedAreSkipped() async throws {
+        let (repository, _) = try makeRepository()
+        _ = try await repository.createBusiness(from: draft())
+
+        try await repository.addEmployees([
+            NewEmployee(displayName: "Jordan Lee", participantRecordName: "_a", colorIndex: 1),
+        ])
+        try await repository.addEmployees([
+            NewEmployee(displayName: "Jordan Lee", participantRecordName: "_a", colorIndex: 1),
+            NewEmployee(displayName: "Sam Rivera", participantRecordName: "_b", colorIndex: 2),
+            NewEmployee(displayName: "Sam Rivera", participantRecordName: "_b", colorIndex: 2),
+        ])
+
+        let employees = try await repository.employees()
+        #expect(employees.map(\.displayName) == ["Owner", "Jordan Lee", "Sam Rivera"])
+        #expect(employees.map(\.participantRecordName) == [nil, "_a", "_b"])
     }
 }

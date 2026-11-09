@@ -74,6 +74,7 @@ public final class CoreDataBusinessRepository: BusinessRepository, @unchecked Se
     }
 
     public func addEmployees(_ newEmployees: [NewEmployee]) async throws {
+        guard !newEmployees.isEmpty else { return }
         let controller = controller
         let context = controller.newBackgroundContext()
         let now = now
@@ -85,7 +86,12 @@ public final class CoreDataBusinessRepository: BusinessRepository, @unchecked Se
             guard business.objectID.persistentStore === privateStore else {
                 throw BusinessRepositoryError.notOwner
             }
+            var knownParticipants = Set(
+                try context.fetchEmployeeObjects(for: business)
+                    .compactMap { $0.value(forKey: "participantRecordName") as? String }
+            )
             for newEmployee in newEmployees {
+                guard knownParticipants.insert(newEmployee.participantRecordName).inserted else { continue }
                 let employee = NSEntityDescription.insertNewObject(forEntityName: EntityName.employee, into: context)
                 context.assign(employee, to: privateStore)
                 employee.setValue(UUID(), forKey: "id")
