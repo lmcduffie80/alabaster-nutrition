@@ -2412,6 +2412,8 @@ git commit -m "feat(features): add app model with role routing and invite reconc
 - Create: `AlabasterKit/Sources/Features/ManagerHomeView.swift`
 - Create: `AlabasterKit/Sources/Features/EmployeeHomeView.swift`
 - Create: `AlabasterKit/Sources/Features/ViewState.swift`
+- Create: `AlabasterKit/Sources/Brand/BrandProminentButtonStyle.swift`
+- Test: `AlabasterKit/Tests/BrandTests/BrandContrastTests.swift`
 
 - [ ] **Step 0: State wrapper alias** — `ViewState.swift`
 
@@ -2426,7 +2428,74 @@ import SwiftUI
 typealias ViewState<Value> = SwiftUI.State<Value>
 ```
 
+- [ ] **Step 0b: Brand prominent button** — `BrandProminentButtonStyle.swift` in `Brand`
+
+The system `.borderedProminent` style puts white text on the tint, which is 2.39:1 on dark-mode porcelain. This style uses alabaster text instead (6.18:1 light, 7.17:1 dark).
+
+```swift
+import SwiftUI
+
+/// Porcelain capsule with alabaster text, which meets 4.5:1 in both appearances.
+/// The system prominent style puts white text on the tint, which drops below 3:1 on dark-mode porcelain.
+public struct BrandProminentButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        StyledLabel(configuration: configuration)
+    }
+
+    private struct StyledLabel: View {
+        let configuration: Configuration
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            configuration.label
+                .font(.headline)
+                .foregroundStyle(BrandPalette.alabaster.color)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+                .background(Capsule().fill(BrandPalette.porcelain.color))
+                .contentShape(Capsule())
+                .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.45)
+        }
+    }
+}
+
+extension ButtonStyle where Self == BrandProminentButtonStyle {
+    public static var brandProminent: BrandProminentButtonStyle { BrandProminentButtonStyle() }
+}
+```
+
+Test — `Tests/BrandTests/BrandContrastTests.swift`:
+
+```swift
+import Foundation
+import Testing
+@testable import Brand
+
+struct BrandContrastTests {
+    private func luminance(_ hex: String) throws -> Double {
+        let rgba = try #require(HexColor.parse(hex))
+        func linear(_ c: Double) -> Double { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        return 0.2126 * linear(rgba.red) + 0.7152 * linear(rgba.green) + 0.0722 * linear(rgba.blue)
+    }
+
+    private func contrast(_ a: String, _ b: String) throws -> Double {
+        let (la, lb) = (try luminance(a), try luminance(b))
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+    }
+
+    @Test func prominentButtonTextMeetsAAInBothAppearances() throws {
+        let text = BrandPalette.alabaster, fill = BrandPalette.porcelain
+        #expect(try contrast(text.light, fill.light) >= 4.5)
+        #expect(try contrast(text.dark, fill.dark) >= 4.5)
+    }
+}
+```
+
 - [ ] **Step 1: Root routing** — `RootView.swift`
+
+The create-business sheet lives here, outside the role switch, so it stays up when creating the business switches the screen to the manager home.
 
 ```swift
 import Brand
@@ -2437,6 +2506,7 @@ import SwiftUI
 
 public struct RootView: View {
     private let model: AppModel
+    @ViewState private var isCreatingBusiness = false
 
     public init(model: AppModel) {
         self.model = model
@@ -2444,11 +2514,16 @@ public struct RootView: View {
 
     public var body: some View {
         content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(BrandPalette.alabaster.color)
             .tint(BrandPalette.porcelain.color)
+            .sheet(isPresented: $isCreatingBusiness) {
+                CreateBusinessView(model: model)
+            }
             .task { await model.refresh() }
             .onReceive(
                 NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange)
-                    .receive(on: DispatchQueue.main)
+                    .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
             ) { _ in
                 Task { await model.refresh() }
             }
@@ -2458,7 +2533,7 @@ public struct RootView: View {
     private var content: some View {
         switch model.loadState {
         case .loading:
-            ProgressView()
+            ProgressView("Loading…")
         case .iCloudUnavailable:
             unavailable(
                 title: "Sign in to iCloud",
@@ -2480,11 +2555,11 @@ public struct RootView: View {
                 }
             } actions: {
                 Button("Try Again") { Task { await model.retry() } }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.brandProminent)
             }
         case .loaded:
             switch model.role {
-            case .needsSetup: WelcomeView(model: model)
+            case .needsSetup: WelcomeView { isCreatingBusiness = true }
             case .manager: ManagerHomeView(model: model)
             case .employee: EmployeeHomeView(model: model)
             }
@@ -2501,7 +2576,7 @@ public struct RootView: View {
             Text(message)
         } actions: {
             Button("Try Again") { Task { await action() } }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.brandProminent)
         }
     }
 }
@@ -2514,36 +2589,34 @@ import Brand
 import SwiftUI
 
 struct WelcomeView: View {
-    let model: AppModel
-    @ViewState private var isCreatingBusiness = false
+    let onSetUpBusiness: () -> Void
 
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
-            AlabasterWordmark()
-            Text("Scheduling & Time Clock")
-                .font(.headline)
-                .foregroundStyle(BrandPalette.ink.color)
-            FramedPanel {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Joining as staff?")
-                        .font(BrandFonts.heading(size: 22, relativeTo: .title2))
-                    Text("Open the invite link your manager sent you. This screen updates once you've joined.")
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: 32) {
+                    AlabasterWordmark()
+                    Text("Scheduling & Time Clock")
+                        .font(.headline)
+                        .foregroundStyle(BrandPalette.ink.color)
+                    FramedPanel {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Joining as staff?")
+                                .font(BrandFonts.heading(size: 22, relativeTo: .title2))
+                                .accessibilityAddTraits(.isHeader)
+                            Text("Open the invite link your manager sent you. This screen updates once you've joined.")
+                        }
+                        .foregroundStyle(BrandPalette.ink.color)
+                    }
+                    Button("Set Up a New Business", action: onSetUpBusiness)
+                        .buttonStyle(.brandProminent)
                 }
-                .foregroundStyle(BrandPalette.ink.color)
+                .padding(24)
+                .frame(maxWidth: 520)
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
             }
-            Button("Set Up a New Business") { isCreatingBusiness = true }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            Spacer()
         }
-        .padding(24)
-        .frame(maxWidth: 520)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(BrandPalette.alabaster.color)
-        .sheet(isPresented: $isCreatingBusiness) {
-            CreateBusinessView(model: model)
-        }
     }
 }
 ```
@@ -2551,6 +2624,7 @@ struct WelcomeView: View {
 - [ ] **Step 3: Create business form** — `CreateBusinessView.swift`
 
 ```swift
+import Brand
 import Domain
 import SwiftUI
 
@@ -2565,9 +2639,20 @@ struct CreateBusinessView: View {
     var body: some View {
         NavigationStack {
             Form {
+                #if os(macOS)
+                Section {
+                    Text("Set Up Your Business")
+                        .font(BrandFonts.heading(size: 26, relativeTo: .title2))
+                        .foregroundStyle(BrandPalette.ink.color)
+                        .accessibilityAddTraits(.isHeader)
+                }
+                #endif
                 Section("Business") {
                     TextField("Business name", text: $draft.name)
                     TextField("Your name", text: $draft.ownerName)
+                        #if os(iOS)
+                        .textContentType(.name)
+                        #endif
                 }
                 Section("Pay period") {
                     Picker("Frequency", selection: $draft.payPeriodRule) {
@@ -2601,20 +2686,35 @@ struct CreateBusinessView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") { Task { await save() } }
-                        .disabled(isSaving)
+                    if isSaving {
+                        ProgressView()
+                            .accessibilityLabel("Creating business")
+                    } else {
+                        Button("Create", action: startSave)
+                    }
                 }
             }
         }
+        .interactiveDismissDisabled(isSaving)
+        #if os(macOS)
+        .frame(minWidth: 460, minHeight: 480)
+        #endif
     }
 
-    private func save() async {
+    /// Flips `isSaving` before any suspension point, so a second tap cannot start another save.
+    private func startSave() {
+        guard !isSaving else { return }
         errors = draft.validationErrors()
         saveError = nil
         guard errors.isEmpty else { return }
         isSaving = true
+        Task { await save() }
+    }
+
+    private func save() async {
         defer { isSaving = false }
         do {
             try await model.createBusiness(draft)
@@ -2647,6 +2747,7 @@ struct ManagerHomeView: View {
                             Text(businessName)
                                 .font(BrandFonts.heading(size: 28, relativeTo: .title))
                                 .foregroundStyle(BrandPalette.porcelain.color)
+                                .accessibilityAddTraits(.isHeader)
                             Text("Manager")
                                 .font(.subheadline)
                                 .foregroundStyle(BrandPalette.ink.color)
@@ -2661,12 +2762,14 @@ struct ManagerHomeView: View {
                             Circle()
                                 .fill(BrandPalette.employeeColor(at: employee.colorIndex).color)
                                 .frame(width: 12, height: 12)
+                                .accessibilityHidden(true)
                             Text(employee.displayName)
                             Spacer()
                             if employee.role == .manager {
                                 Text("Manager").font(.caption).foregroundStyle(.secondary)
                             }
                         }
+                        .accessibilityElement(children: .combine)
                     }
                     if let item = model.shareItem() {
                         ShareLink(item: item, preview: SharePreview("Join \(businessName)")) {
@@ -2694,21 +2797,21 @@ struct EmployeeHomeView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
+            ScrollView {
                 FramedPanel {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("You're on the team")
                             .font(BrandFonts.heading(size: 26, relativeTo: .title))
                             .foregroundStyle(BrandPalette.porcelain.color)
+                            .accessibilityAddTraits(.isHeader)
                         Text(model.membership.business?.name ?? "")
                             .font(.headline)
                         Text("Your shifts will show up here once your manager publishes a schedule.")
                     }
                     .foregroundStyle(BrandPalette.ink.color)
                 }
-                Spacer()
+                .padding(24)
             }
-            .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(BrandPalette.alabaster.color)
             .navigationTitle("Today")
@@ -2720,7 +2823,7 @@ struct EmployeeHomeView: View {
 - [ ] **Step 6: Build and run all tests**
 
 Run: `swift build && swift test`
-Expected: `Build complete!` and every test passes.
+Expected: `Build complete!` and every test passes, including `BrandContrastTests`.
 
 - [ ] **Step 7: Commit**
 
