@@ -1,8 +1,14 @@
 import CloudKit
 import CoreData
 
-public enum PersistenceError: Error {
+public enum PersistenceError: LocalizedError {
     case storeMissing
+
+    public var errorDescription: String? {
+        switch self {
+        case .storeMissing: "The app's data couldn't be opened. Restart the app and try again."
+        }
+    }
 }
 
 public final class PersistenceController: @unchecked Sendable {
