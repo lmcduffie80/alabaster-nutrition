@@ -14,6 +14,7 @@
 
 - **Swift language modes:** `Domain`, `Brand`, and `Features` use Swift 6 mode. `Persistence`, `Sharing`, and the app shell use Swift 5 mode, because Core Data and CloudKit types are not `Sendable` and strict mode adds noise without safety benefit in that glue code.
 - **Running SwiftPM commands:** SwiftPM uses its own sandbox, which conflicts with agent sandboxes. Run every `swift build` / `swift test` command with the agent sandbox disabled.
+- **Command Line Tools only:** SwiftPM does not find the Swift Testing macro plugin without Xcode. Until Xcode is installed, append `-Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing` to every `swift build` and `swift test` command.
 - **Working directory:** all `swift` commands run from `AlabasterKit/`. All `git` commands run from the repository root.
 - **Tasks 1–13 need only the Command Line Tools.** Tasks 14–16 need full Xcode, XcodeGen, and an Apple Developer account.
 - **Deferred to Milestone 6 (polish):** the ginger-jar pattern illustration and the app icon. Both need artwork; this milestone uses the framed panel and wordmark only, and the app builds with the default icon.
