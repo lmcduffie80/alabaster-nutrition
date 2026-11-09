@@ -1,0 +1,424 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0E9A6358A6C71F9B4F352771 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5E5F9AAE2436CD9537EABD /* AppServices.swift */; };
+		53BAF305B90DEB9BE2CA328D /* AlabasterKit in Frameworks */ = {isa = PBXBuildFile; productRef = FA2600A869CEC066B8F309A0 /* AlabasterKit */; };
+		54AF52F7B4AB862089F43873 /* AlabasterScheduleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A4485DB5D3225F86EBF00A /* AlabasterScheduleApp.swift */; };
+		A43E71BC7850DF88A3EEB9A8 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5E5F9AAE2436CD9537EABD /* AppServices.swift */; };
+		B421B72AE107B04232994DB8 /* AlabasterKit in Frameworks */ = {isa = PBXBuildFile; productRef = B8BCEEB520FAFF6B24D3AF28 /* AlabasterKit */; };
+		FA546A40B4D72914D8998347 /* AlabasterScheduleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A4485DB5D3225F86EBF00A /* AlabasterScheduleApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		7BBAD9CF95BDA4327FB3C6BE /* AlabasterSchedule-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AlabasterSchedule-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AF62D3C733C676B74A44B25A /* AlabasterKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AlabasterKit; path = ../AlabasterKit; sourceTree = SOURCE_ROOT; };
+		C1A4485DB5D3225F86EBF00A /* AlabasterScheduleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlabasterScheduleApp.swift; sourceTree = "<group>"; };
+		EA5E5F9AAE2436CD9537EABD /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
+		F2D088A7A24021DEE56E4D30 /* AlabasterSchedule-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "AlabasterSchedule-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		87DB8539D0C9DF4FDDA2E984 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B421B72AE107B04232994DB8 /* AlabasterKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DAC8079E5FA7D566640019E3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				53BAF305B90DEB9BE2CA328D /* AlabasterKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0007ED276D4800535BCDDBDD /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				C1A4485DB5D3225F86EBF00A /* AlabasterScheduleApp.swift */,
+				EA5E5F9AAE2436CD9537EABD /* AppServices.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		3A04EB7A260391760B42AC46 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				AF62D3C733C676B74A44B25A /* AlabasterKit */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		8C83E28C636E2924191326FF /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F2D088A7A24021DEE56E4D30 /* AlabasterSchedule-iOS.app */,
+				7BBAD9CF95BDA4327FB3C6BE /* AlabasterSchedule-macOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F9BBE21C02690034F43256FC = {
+			isa = PBXGroup;
+			children = (
+				3A04EB7A260391760B42AC46 /* Packages */,
+				0007ED276D4800535BCDDBDD /* Sources */,
+				8C83E28C636E2924191326FF /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		07BF5BF292715151FD6C7706 /* AlabasterSchedule-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D52DCD83880B327D56E1215F /* Build configuration list for PBXNativeTarget "AlabasterSchedule-iOS" */;
+			buildPhases = (
+				7EC8AD2EAA0B0C0029F3BF82 /* Sources */,
+				87DB8539D0C9DF4FDDA2E984 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "AlabasterSchedule-iOS";
+			packageProductDependencies = (
+				B8BCEEB520FAFF6B24D3AF28 /* AlabasterKit */,
+			);
+			productName = "AlabasterSchedule-iOS";
+			productReference = F2D088A7A24021DEE56E4D30 /* AlabasterSchedule-iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		5CC5FF2E34E1DA39E8B1F167 /* AlabasterSchedule-macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A3A9F3DA56BCA632A0CC2BCB /* Build configuration list for PBXNativeTarget "AlabasterSchedule-macOS" */;
+			buildPhases = (
+				BE1F3BC57755FDD74C5CB0B9 /* Sources */,
+				DAC8079E5FA7D566640019E3 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "AlabasterSchedule-macOS";
+			packageProductDependencies = (
+				FA2600A869CEC066B8F309A0 /* AlabasterKit */,
+			);
+			productName = "AlabasterSchedule-macOS";
+			productReference = 7BBAD9CF95BDA4327FB3C6BE /* AlabasterSchedule-macOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DF47F599694696E27F95DC28 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					07BF5BF292715151FD6C7706 = {
+						DevelopmentTeam = "";
+					};
+					5CC5FF2E34E1DA39E8B1F167 = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 7DE93A01CE3A17D7AFFC5739 /* Build configuration list for PBXProject "AlabasterSchedule" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = F9BBE21C02690034F43256FC;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				EDE59117DC78B9DDB6B6D4E2 /* XCLocalSwiftPackageReference "../AlabasterKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 8C83E28C636E2924191326FF /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				07BF5BF292715151FD6C7706 /* AlabasterSchedule-iOS */,
+				5CC5FF2E34E1DA39E8B1F167 /* AlabasterSchedule-macOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7EC8AD2EAA0B0C0029F3BF82 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				54AF52F7B4AB862089F43873 /* AlabasterScheduleApp.swift in Sources */,
+				A43E71BC7850DF88A3EEB9A8 /* AppServices.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE1F3BC57755FDD74C5CB0B9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FA546A40B4D72914D8998347 /* AlabasterScheduleApp.swift in Sources */,
+				0E9A6358A6C71F9B4F352771 /* AppServices.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		3A2A7AEC20BF141226A3212B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "Generated/AlabasterSchedule-iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = "Generated/Info-iOS.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4C0C5F610F707769ED73405A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "Generated/AlabasterSchedule-macOS.entitlements";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = "Generated/Info-macOS.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		66A2DBBE78DB21E3A786F202 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "Generated/AlabasterSchedule-iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = "Generated/Info-iOS.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		723F02CEC1F81EAF918EF0A2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alabasternutrition.schedule;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		8287C18C55D1403B3A168563 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "Generated/AlabasterSchedule-macOS.entitlements";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = "Generated/Info-macOS.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		A74C51B10545DA2892BD7E4B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alabasternutrition.schedule;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7DE93A01CE3A17D7AFFC5739 /* Build configuration list for PBXProject "AlabasterSchedule" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				723F02CEC1F81EAF918EF0A2 /* Debug */,
+				A74C51B10545DA2892BD7E4B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A3A9F3DA56BCA632A0CC2BCB /* Build configuration list for PBXNativeTarget "AlabasterSchedule-macOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8287C18C55D1403B3A168563 /* Debug */,
+				4C0C5F610F707769ED73405A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D52DCD83880B327D56E1215F /* Build configuration list for PBXNativeTarget "AlabasterSchedule-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3A2A7AEC20BF141226A3212B /* Debug */,
+				66A2DBBE78DB21E3A786F202 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		EDE59117DC78B9DDB6B6D4E2 /* XCLocalSwiftPackageReference "../AlabasterKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../AlabasterKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B8BCEEB520FAFF6B24D3AF28 /* AlabasterKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AlabasterKit;
+		};
+		FA2600A869CEC066B8F309A0 /* AlabasterKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AlabasterKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = DF47F599694696E27F95DC28 /* Project object */;
+}
