@@ -13,4 +13,20 @@ struct CoordinateTests {
     @Test func rejectsLongitudeOutOfRange() {
         #expect(!Coordinate(latitude: 0, longitude: -180.5).isValid)
     }
+
+    @Test(arguments: [
+        Coordinate(latitude: 90, longitude: 180),
+        Coordinate(latitude: -90, longitude: -180),
+    ])
+    func acceptsExactLimits(coordinate: Coordinate) {
+        #expect(coordinate.isValid)
+    }
+
+    @Test(arguments: [
+        Coordinate(latitude: .nan, longitude: 0),
+        Coordinate(latitude: 0, longitude: .nan),
+    ])
+    func rejectsNaN(coordinate: Coordinate) {
+        #expect(!coordinate.isValid)
+    }
 }
