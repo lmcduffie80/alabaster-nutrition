@@ -2252,6 +2252,16 @@ public struct RootView: View {
             )
         case .failed(let message):
             unavailable(title: "Something went wrong", symbol: "exclamationmark.triangle", message: message)
+        case .joining:
+            ContentUnavailableView {
+                Label("Joining your team…", systemImage: "person.2")
+            } description: {
+                ProgressView()
+                Text("Your business is syncing from iCloud. This can take a minute.")
+            } actions: {
+                Button("Try Again") { Task { await model.refresh() } }
+                    .buttonStyle(.borderedProminent)
+            }
         case .loaded:
             switch model.role {
             case .needsSetup: WelcomeView(model: model)
@@ -2616,12 +2626,7 @@ final class AppServices {
 
     func accept(_ metadata: CKShare.Metadata) {
         Task {
-            do {
-                try await sharing.acceptInvitation(metadata)
-                await model.refresh()
-            } catch {
-                model.showError("The invite couldn't be accepted: \(error.localizedDescription)")
-            }
+            await model.acceptInvitation { [sharing] in try await sharing.acceptInvitation(metadata) }
         }
     }
 }
