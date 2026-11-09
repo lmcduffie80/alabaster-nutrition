@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@theme {
+  --color-porcelain: #3e5c9a;
+  --color-porcelain-dark: #2f4a80;
+  --color-porcelain-light: #e3e9f4;
+  --color-sage: #a9bc98;
+  --color-sage-light: #e4ebdc;
+  --color-alabaster: #faf8f3;
+  --color-ink: #1f2a44;
+  --color-gilt: #9c7a3c;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+}
+
+@theme inline {
+  --font-script: var(--font-great-vibes);
+  --font-serif: var(--font-cormorant);
+}
+
+body {
+  background-color: var(--color-alabaster);
+  background-image:
+    radial-gradient(circle at 12px 12px, rgb(62 92 154 / 0.08) 2px, transparent 2.5px),
+    radial-gradient(circle at 36px 36px, rgb(169 188 152 / 0.18) 3px, transparent 3.5px);
+  background-size: 48px 48px;
+  color: var(--color-ink);
+}
