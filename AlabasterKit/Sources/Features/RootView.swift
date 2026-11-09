@@ -23,7 +23,7 @@ public struct RootView: View {
             .task { await model.refresh() }
             .onReceive(
                 NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange)
-                    .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+                    .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
             ) { _ in
                 Task { await model.refresh() }
             }

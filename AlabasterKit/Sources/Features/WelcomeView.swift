@@ -28,6 +28,7 @@ struct WelcomeView: View {
                 .frame(maxWidth: 520)
                 .frame(maxWidth: .infinity, minHeight: proxy.size.height)
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
         .background(BrandPalette.alabaster.color)
     }

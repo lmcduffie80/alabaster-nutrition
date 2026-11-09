@@ -2523,7 +2523,7 @@ public struct RootView: View {
             .task { await model.refresh() }
             .onReceive(
                 NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange)
-                    .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+                    .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
             ) { _ in
                 Task { await model.refresh() }
             }
@@ -2615,6 +2615,7 @@ struct WelcomeView: View {
                 .frame(maxWidth: 520)
                 .frame(maxWidth: .infinity, minHeight: proxy.size.height)
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
         .background(BrandPalette.alabaster.color)
     }
@@ -2645,6 +2646,7 @@ struct CreateBusinessView: View {
                         .font(BrandFonts.heading(size: 26, relativeTo: .title2))
                         .foregroundStyle(BrandPalette.ink.color)
                         .accessibilityAddTraits(.isHeader)
+                        .listRowBackground(Color.clear)
                 }
                 #endif
                 Section("Business") {
@@ -2812,6 +2814,7 @@ struct EmployeeHomeView: View {
                 }
                 .padding(24)
             }
+            .scrollBounceBehavior(.basedOnSize)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(BrandPalette.alabaster.color)
             .navigationTitle("Today")

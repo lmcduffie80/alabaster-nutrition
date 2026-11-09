@@ -19,6 +19,7 @@ struct CreateBusinessView: View {
                         .font(BrandFonts.heading(size: 26, relativeTo: .title2))
                         .foregroundStyle(BrandPalette.ink.color)
                         .accessibilityAddTraits(.isHeader)
+                        .listRowBackground(Color.clear)
                 }
                 #endif
                 Section("Business") {

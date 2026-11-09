@@ -21,6 +21,7 @@ struct EmployeeHomeView: View {
                 }
                 .padding(24)
             }
+            .scrollBounceBehavior(.basedOnSize)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(BrandPalette.alabaster.color)
             .navigationTitle("Today")
