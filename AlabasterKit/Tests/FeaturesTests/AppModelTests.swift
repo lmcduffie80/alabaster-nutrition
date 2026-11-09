@@ -67,10 +67,10 @@ struct AppModelTests {
         let model = AppModel(repository: repository, sharing: sharing)
 
         let first = Task { await model.refresh() }
-        while await sharing.waitingCount == 0 { await Task.yield() }
+        await waitUntil { await sharing.waitingCount == 1 }
         let second = Task { await model.refresh() }
         let third = Task { await model.refresh() }
-        for _ in 0..<20 { await Task.yield() }
+        await waitUntil { model.refreshRequested }
 
         await sharing.open()
         await first.value
@@ -81,6 +81,38 @@ struct AppModelTests {
         #expect(await sharing.participantRequests == 2)
         #expect(await repository.added.map(\.participantRecordName) == ["_a"])
         #expect(model.employees.map(\.displayName) == ["Owner", "Jordan Lee"])
+    }
+
+    @Test func aRefreshDoesNotHideAnInviteError() async {
+        let repository = FakeBusinessRepository()
+        await repository.setMembership(.owner(Sample.business), employees: [Sample.owner])
+        let sharing = GatedSharing(participants: [])
+        let model = AppModel(repository: repository, sharing: sharing)
+
+        let refresh = Task { await model.refresh() }
+        await waitUntil { await sharing.waitingCount == 1 }
+        await model.acceptInvitation { throw FakeError() }
+        await sharing.open()
+        await refresh.value
+        #expect(model.loadState == .failed("The invite couldn't be accepted: The network went away."))
+
+        await model.retry()
+        #expect(model.loadState == .loaded)
+        #expect(model.role == .manager)
+    }
+
+    @Test func aReconciliationFailureStillLoadsTheBusiness() async {
+        let repository = FakeBusinessRepository()
+        await repository.setMembership(.owner(Sample.business), employees: [Sample.owner])
+        let sharing = FakeSharing()
+        sharing.participantsError = FakeError()
+
+        let model = AppModel(repository: repository, sharing: sharing)
+        await model.refresh()
+
+        #expect(model.loadState == .loaded)
+        #expect(model.role == .manager)
+        #expect(model.employees.map(\.displayName) == ["Owner"])
     }
 
     @Test func joiningWaitsForTheSharedBusinessToSync() async {
@@ -107,7 +139,7 @@ struct AppModelTests {
         await model.acceptInvitation { throw FakeError() }
         #expect(model.loadState == .failed("The invite couldn't be accepted: The network went away."))
 
-        await model.refresh()
+        await model.retry()
         #expect(model.loadState == .loaded)
         #expect(model.role == .needsSetup)
     }
@@ -116,5 +148,16 @@ struct AppModelTests {
         let model = AppModel(repository: FakeBusinessRepository(), sharing: FakeSharing())
         model.showError("Invite could not be accepted.")
         #expect(model.loadState == .failed("Invite could not be accepted."))
+    }
+
+    private func waitUntil(
+        _ condition: () async -> Bool,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) async {
+        for _ in 0..<1_000 {
+            if await condition() { return }
+            await Task.yield()
+        }
+        Issue.record("Timed out waiting for condition", sourceLocation: sourceLocation)
     }
 }

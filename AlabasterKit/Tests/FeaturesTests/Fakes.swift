@@ -47,12 +47,14 @@ actor FakeBusinessRepository: BusinessRepository {
 final class FakeSharing: BusinessSharing, @unchecked Sendable {
     var iCloudAvailable = true
     var participants: [ShareParticipantInfo] = []
+    var participantsError: (any Error)?
     private(set) var participantRequests = 0
 
     func isICloudAvailable() async -> Bool { iCloudAvailable }
 
     func acceptedParticipants() async throws -> [ShareParticipantInfo] {
         participantRequests += 1
+        if let participantsError { throw participantsError }
         return participants
     }
 

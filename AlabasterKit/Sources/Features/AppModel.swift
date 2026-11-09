@@ -22,9 +22,11 @@ public final class AppModel {
 
     private let repository: any BusinessRepository
     private let sharing: any BusinessSharing
-    private var runningRefresh: Task<Void, Never>?
-    private var refreshRequested = false
-    private var isJoining = false
+    @ObservationIgnored private var runningRefresh: Task<Void, Never>?
+    @ObservationIgnored var refreshRequested = false
+    @ObservationIgnored private var isJoining = false
+    /// Set by `showError(_:)` and kept until `retry()`, so a background refresh cannot hide it.
+    @ObservationIgnored private var pendingError: String?
 
     public init(repository: any BusinessRepository, sharing: any BusinessSharing) {
         self.repository = repository
@@ -50,24 +52,34 @@ public final class AppModel {
         await task.value
     }
 
+    /// Clears a pending error and refreshes. Backs the "Try Again" buttons.
+    public func retry() async {
+        pendingError = nil
+        await refresh()
+    }
+
+    /// A pending error outranks every state except `.iCloudUnavailable`, which the user must fix first;
+    /// the error shows again once iCloud is back, until `retry()`.
     private func performRefresh() async {
         guard await sharing.isICloudAvailable() else {
             loadState = .iCloudUnavailable
             return
         }
+        let state: LoadState
         do {
             membership = try await repository.membership()
             if case .owner = membership {
-                try await reconcileParticipants()
+                try? await reconcileParticipants()
             }
             employees = membership.business == nil ? [] : try await repository.employees()
             if membership != .none {
                 isJoining = false
             }
-            loadState = isJoining ? .joining : .loaded
+            state = isJoining ? .joining : .loaded
         } catch {
-            loadState = .failed(error.localizedDescription)
+            state = .failed(error.localizedDescription)
         }
+        loadState = pendingError.map(LoadState.failed) ?? state
     }
 
     public func createBusiness(_ draft: BusinessDraft) async throws {
@@ -78,6 +90,7 @@ public final class AppModel {
     /// Accepts an invite, then stays in `.joining` until the shared business syncs down,
     /// so the new employee is not sent to business setup in the meantime.
     public func acceptInvitation(_ accept: @escaping @Sendable () async throws -> Void) async {
+        pendingError = nil
         isJoining = true
         loadState = .joining
         do {
@@ -96,9 +109,11 @@ public final class AppModel {
     }
 
     public func showError(_ message: String) {
+        pendingError = message
         loadState = .failed(message)
     }
 
+    /// Best effort: a failure here leaves new participants for the next refresh to add.
     private func reconcileParticipants() async throws {
         let participants = try await sharing.acceptedParticipants()
         let newEmployees = ParticipantReconciler.newEmployees(
