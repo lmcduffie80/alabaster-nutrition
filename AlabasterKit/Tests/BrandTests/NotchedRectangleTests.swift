@@ -58,4 +58,15 @@ struct NotchedRectangleTests {
         #expect(!path.contains(CGPoint(x: 18 * diagonal, y: 18 * diagonal)))
         #expect(path.contains(CGPoint(x: 20 * diagonal, y: 20 * diagonal)))
     }
+
+    @Test func largeInsetStaysInsideTheInsetRect() {
+        let path = NotchedRectangle(notch: 14).inset(by: 45).path(in: rect)
+        #expect(rect.insetBy(dx: 45, dy: 45).contains(path.boundingRect))
+        #expect(path.contains(CGPoint(x: 100, y: 50)))
+    }
+
+    @Test func overlappingNotchesRemoveTheShortEdge() {
+        let short = CGRect(x: 0, y: 0, width: 200, height: 40)
+        #expect(!NotchedRectangle(notch: 14).inset(by: 15).path(in: short).contains(CGPoint(x: 184, y: 20)))
+    }
 }

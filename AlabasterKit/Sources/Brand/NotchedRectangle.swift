@@ -20,27 +20,14 @@ public struct NotchedRectangle: InsettableShape {
         let n = max(0, min(notch, rect.width / 2, rect.height / 2))
         guard n > 0 else { return Path(inner) }
 
-        // Arcs stay centred on the original corners so inset outlines are concentric with the fill.
-        let radius = n + insetAmount
-        let offset = Angle.radians(asin(insetAmount / radius))
-        let corners: [(center: CGPoint, start: Double)] = [
-            (CGPoint(x: rect.maxX, y: rect.minY), 180),
-            (CGPoint(x: rect.maxX, y: rect.maxY), 270),
-            (CGPoint(x: rect.minX, y: rect.maxY), 360),
-            (CGPoint(x: rect.minX, y: rect.minY), 90),
-        ]
-        var path = Path()
-        for corner in corners {
-            path.addArc(
-                center: corner.center,
-                radius: radius,
-                startAngle: .degrees(corner.start) - offset,
-                endAngle: .degrees(corner.start - 90) + offset,
-                clockwise: true
-            )
+        // Notches stay centred on the original corners so inset outlines are concentric with the fill.
+        let r = n + insetAmount
+        var notches = Path()
+        for c in [CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY),
+                  CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.maxY)] {
+            notches.addEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
         }
-        path.closeSubpath()
-        return path
+        return Path(inner).subtracting(notches)
     }
 
     public func inset(by amount: CGFloat) -> NotchedRectangle {
