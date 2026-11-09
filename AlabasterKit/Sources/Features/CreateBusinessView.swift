@@ -5,10 +5,10 @@ import SwiftUI
 struct CreateBusinessView: View {
     let model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @ViewState private var draft = BusinessDraft.alabasterDefaults(ownerName: "", payPeriodAnchor: .now)
-    @ViewState private var errors: [BusinessDraftError] = []
-    @ViewState private var saveError: String?
-    @ViewState private var isSaving = false
+    @State private var draft = BusinessDraft.alabasterDefaults(ownerName: "", payPeriodAnchor: .now)
+    @State private var errors: [BusinessDraftError] = []
+    @State private var saveError: String?
+    @State private var isSaving = false
 
     var body: some View {
         NavigationStack {

@@ -1,0 +1,68 @@
+name: AlabasterSchedule
+options:
+  bundleIdPrefix: com.alabasternutrition
+  deploymentTarget:
+    iOS: "18.0"
+    macOS: "15.0"
+settings:
+  base:
+    DEVELOPMENT_TEAM: ${ALABASTER_TEAM_ID}
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    PRODUCT_BUNDLE_IDENTIFIER: com.alabasternutrition.schedule
+packages:
+  AlabasterKit:
+    path: ../AlabasterKit
+targets:
+  AlabasterSchedule-iOS:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    dependencies:
+      - package: AlabasterKit
+        product: AlabasterKit
+    settings:
+      base:
+        TARGETED_DEVICE_FAMILY: "1,2"
+    entitlements:
+      path: Generated/AlabasterSchedule-iOS.entitlements
+      properties:
+        com.apple.developer.icloud-container-identifiers: [iCloud.com.alabasternutrition.schedule]
+        com.apple.developer.icloud-services: [CloudKit]
+        aps-environment: development
+    info:
+      path: Generated/Info-iOS.plist
+      properties:
+        CFBundleDisplayName: Alabaster Schedule
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CKSharingSupported: true
+        UIBackgroundModes: [remote-notification]
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+    scheme: {}
+  AlabasterSchedule-macOS:
+    type: application
+    platform: macOS
+    sources: [Sources]
+    dependencies:
+      - package: AlabasterKit
+        product: AlabasterKit
+    entitlements:
+      path: Generated/AlabasterSchedule-macOS.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.developer.icloud-container-identifiers: [iCloud.com.alabasternutrition.schedule]
+        com.apple.developer.icloud-services: [CloudKit]
+        com.apple.developer.aps-environment: development
+    info:
+      path: Generated/Info-macOS.plist
+      properties:
+        CFBundleDisplayName: Alabaster Schedule
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CKSharingSupported: true
+    scheme: {}

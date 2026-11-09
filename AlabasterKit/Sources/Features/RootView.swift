@@ -6,7 +6,7 @@ import SwiftUI
 
 public struct RootView: View {
     private let model: AppModel
-    @ViewState private var isCreatingBusiness = false
+    @State private var isCreatingBusiness = false
 
     public init(model: AppModel) {
         self.model = model
