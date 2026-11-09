@@ -10,7 +10,7 @@ let package = Package(
     targets: [
         .target(name: "Domain"),
         .testTarget(name: "DomainTests", dependencies: ["Domain"]),
-        .target(name: "Brand"),
+        .target(name: "Brand", resources: [.copy("Resources/Fonts")]),
         .testTarget(name: "BrandTests", dependencies: ["Brand", "Domain"]),
     ]
 )
