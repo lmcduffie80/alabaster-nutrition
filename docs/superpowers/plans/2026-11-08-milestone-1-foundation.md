@@ -2411,6 +2411,20 @@ git commit -m "feat(features): add app model with role routing and invite reconc
 - Create: `AlabasterKit/Sources/Features/CreateBusinessView.swift`
 - Create: `AlabasterKit/Sources/Features/ManagerHomeView.swift`
 - Create: `AlabasterKit/Sources/Features/EmployeeHomeView.swift`
+- Create: `AlabasterKit/Sources/Features/ViewState.swift`
+
+- [ ] **Step 0: State wrapper alias** — `ViewState.swift`
+
+The iOS 27 / macOS 27 SDKs shadow the `State` property wrapper with a `@State` macro whose plugin (`SwiftUIMacros`) ships only with Xcode, so `@State` does not build with the Command Line Tools. The views use this alias until builds require Xcode.
+
+```swift
+import SwiftUI
+
+/// The `State` property wrapper under another name. The iOS 27 / macOS 27 SDKs shadow it with a `@State`
+/// macro whose plugin ships only with Xcode, so `@State` fails to build with the Command Line Tools alone.
+/// Replace `@ViewState` with `@State` once builds require Xcode.
+typealias ViewState<Value> = SwiftUI.State<Value>
+```
 
 - [ ] **Step 1: Root routing** — `RootView.swift`
 
@@ -2460,8 +2474,10 @@ public struct RootView: View {
             ContentUnavailableView {
                 Label("Joining your team…", systemImage: "person.2")
             } description: {
-                ProgressView()
-                Text("Your business is syncing from iCloud. This can take a minute.")
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Your business is syncing from iCloud. This can take a minute.")
+                }
             } actions: {
                 Button("Try Again") { Task { await model.retry() } }
                     .buttonStyle(.borderedProminent)
@@ -2499,7 +2515,7 @@ import SwiftUI
 
 struct WelcomeView: View {
     let model: AppModel
-    @State private var isCreatingBusiness = false
+    @ViewState private var isCreatingBusiness = false
 
     var body: some View {
         VStack(spacing: 32) {
@@ -2511,7 +2527,7 @@ struct WelcomeView: View {
             FramedPanel {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Joining as staff?")
-                        .font(BrandFonts.heading(size: 22))
+                        .font(BrandFonts.heading(size: 22, relativeTo: .title2))
                     Text("Open the invite link your manager sent you. This screen updates once you've joined.")
                 }
                 .foregroundStyle(BrandPalette.ink.color)
@@ -2541,10 +2557,10 @@ import SwiftUI
 struct CreateBusinessView: View {
     let model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @State private var draft = BusinessDraft.alabasterDefaults(ownerName: "", payPeriodAnchor: .now)
-    @State private var errors: [BusinessDraftError] = []
-    @State private var saveError: String?
-    @State private var isSaving = false
+    @ViewState private var draft = BusinessDraft.alabasterDefaults(ownerName: "", payPeriodAnchor: .now)
+    @ViewState private var errors: [BusinessDraftError] = []
+    @ViewState private var saveError: String?
+    @ViewState private var isSaving = false
 
     var body: some View {
         NavigationStack {
@@ -2629,7 +2645,7 @@ struct ManagerHomeView: View {
                     FramedPanel {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(businessName)
-                                .font(BrandFonts.heading(size: 28))
+                                .font(BrandFonts.heading(size: 28, relativeTo: .title))
                                 .foregroundStyle(BrandPalette.porcelain.color)
                             Text("Manager")
                                 .font(.subheadline)
@@ -2682,7 +2698,7 @@ struct EmployeeHomeView: View {
                 FramedPanel {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("You're on the team")
-                            .font(BrandFonts.heading(size: 26))
+                            .font(BrandFonts.heading(size: 26, relativeTo: .title))
                             .foregroundStyle(BrandPalette.porcelain.color)
                         Text(model.membership.business?.name ?? "")
                             .font(.headline)
