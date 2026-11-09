@@ -67,7 +67,7 @@ Because punches are made on the store iPad, which is signed in to the manager's 
 Role is derived from zone ownership: if the current user owns the Business zone they are the manager. The store iPad is a manager device that opens in kiosk mode.
 
 ### Records
-- `Business`: name, timezone, pay-period rule (weekly or biweekly, plus anchor date), missing-clock-out threshold (default 12 h), kiosk auto-return delay (default 10 s).
+- `Business`: name, timezone, pay-period rule (weekly or biweekly, plus anchor date), missing-clock-out threshold (default 12 h), kiosk auto-return delay (default 10 s, configurable 5–60 s).
 - `Employee`: display name, role, schedule color, CloudKit participant identity (optional, set only when they join on a phone), active flag.
 - `EmployeePIN`: employee, salted SHA-256 hash, updated at. One record also holds the manager PIN.
 - `Shift`: employee (optional when open), start, end, position label, status (`draft`, `published`, `open`).
@@ -117,7 +117,7 @@ Source: the Alabaster Nutrition Facebook page (screenshots in `docs/branding/`).
 
 ### Store iPad (kiosk)
 1. **Keypad** — wordmark, current time, and a large 4-digit keypad. No employee names are shown. A small "Manager" button in the corner.
-2. **Employee screen** (after a correct PIN) — "Hi, Ava", current status, and one large action: Clock In, or Start Break / End Break / Clock Out when already clocked in. Shows today's shift and their upcoming shifts this week. Returns to the keypad 3 seconds after an action, or after 10 seconds of no activity.
+2. **Employee screen** (after a correct PIN) — "Hi, Ava", current status, and one large action: Clock In, or Start Break / End Break / Clock Out when already clocked in. Shows today's shift and their upcoming shifts this week. Returns to the keypad 3 seconds after an action, or after the kiosk auto-return delay (default 10 seconds) of no activity.
 3. **Confirmation** — "Clocked in at 6:58 AM" in a framed panel, then back to the keypad.
 4. **Manager unlock** — Face ID / Touch ID, falling back to the manager PIN, then opens the full manager tools. The manager area locks again after 2 minutes of no activity or when "Lock" is tapped.
 
@@ -155,7 +155,7 @@ Writes go to the local store first so the UI updates immediately and works offli
 | Store iPad offline | Punches save locally with exact timestamps and sync when back online. Clocking in never depends on the network. |
 | Wrong PIN | "That PIN didn't match." After 5 wrong tries, keypad locks for 30 seconds. |
 | Forgotten PIN | Manager resets it in Settings. |
-| Employee walks away mid-session | Kiosk returns to the keypad after 10 seconds of no activity. |
+| Employee walks away mid-session | Kiosk returns to the keypad after the auto-return delay (default 10 seconds) of no activity. |
 | Forgotten clock-out | After the threshold (default 12 h), manager gets a "Missing clock-out" item; the next time that employee enters their PIN, the kiosk asks them to tell the manager their clock-out time. |
 | Overlapping shift or shift during approved time off | Warning shown to manager before publishing. |
 | Two claims on one open shift | First approved claim wins; the other is closed automatically. |

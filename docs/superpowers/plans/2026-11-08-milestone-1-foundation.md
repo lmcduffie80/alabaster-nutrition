@@ -3126,7 +3126,7 @@ git commit -m "docs: record milestone 1 two-account test results"
 
 ---
 
-### Task 16: Spike — how employee time records get to the manager
+### Task 16: Spike — employee zones (moved to Milestone 5)
 
 Moved to Milestone 5 (phone app and requests): employee zones now only carry availability, time-off, swap, and open-shift requests; timekeeping lives in the manager's Timekeeping zone.
 
