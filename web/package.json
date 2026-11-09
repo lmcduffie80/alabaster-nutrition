@@ -1,5 +1,5 @@
 {
-  "name": "prototype",
+  "name": "web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.9.25",
     "@date-fns/tz": "^1.5.0",
     "@vercel/functions": "^3.11.1",
     "date-fns": "^4.4.0",

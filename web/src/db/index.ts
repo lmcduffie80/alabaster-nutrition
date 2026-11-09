@@ -30,6 +30,9 @@ async function connect(): Promise<Db> {
 
 /** One connection pool per server instance; survives dev hot reloads. */
 export function getDb(): Promise<Db> {
-  globalThis.alabasterDb ??= connect();
+  globalThis.alabasterDb ??= connect().catch((error) => {
+    globalThis.alabasterDb = undefined;
+    throw error;
+  });
   return globalThis.alabasterDb;
 }

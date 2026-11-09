@@ -86,3 +86,30 @@ export function Wordmark({ size = "sm" }: { size?: "sm" | "lg" }) {
 export function ColorDot({ color }: { color: string }) {
   return <span className="inline-block size-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />;
 }
+
+/** Same order as the native app's `BrandPalette.employeeColors`. */
+const employeeColors = ["#3E5C9A", "#7E9A6A", "#5B7FC2", "#9C7A3C", "#2E4470", "#5F7F73", "#8A6F9E", "#B5655A"];
+
+export function employeeColor(index: number) {
+  const count = employeeColors.length;
+  return employeeColors[((index % count) + count) % count];
+}
+
+export const inputClass =
+  "w-full rounded-xl border border-ink/15 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-porcelain focus:ring-2 focus:ring-porcelain/20";
+
+export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 block font-medium text-ink/80">{label}</span>
+      {children}
+      {hint && <span className="mt-1 block text-xs text-ink/50">{hint}</span>}
+    </label>
+  );
+}
+
+export function FormMessage({ error, success }: { error?: string | null; success?: string | null }) {
+  if (error) return <p role="alert" className="text-sm font-medium text-red-700">{error}</p>;
+  if (success) return <p role="status" className="text-sm font-medium text-[#4d6340]">{success}</p>;
+  return null;
+}

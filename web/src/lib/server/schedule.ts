@@ -96,6 +96,15 @@ export async function unpublishWeek(db: Db, weekStart: LocalDate) {
   await db.update(schema.scheduleWeek).set({ publishedAt: null }).where(eq(schema.scheduleWeek.weekStart, weekStart));
 }
 
+/** Every shift starting in the range, published or not. For the manager. */
+export async function shiftsStartingBetween(db: Db, from: Date, to: Date): Promise<ScheduledShift[]> {
+  return db
+    .select(shiftColumns)
+    .from(schema.shift)
+    .where(and(gte(schema.shift.startsAt, from), lt(schema.shift.startsAt, to)))
+    .orderBy(asc(schema.shift.startsAt));
+}
+
 /** Shifts employees are allowed to see: only weeks the manager has published. */
 export async function publishedShifts(db: Db, range: { from: Date; to: Date }, employeeIds?: string[]): Promise<ScheduledShift[]> {
   return db

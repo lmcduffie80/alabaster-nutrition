@@ -37,11 +37,14 @@ export async function periodTimesheets(db: Db, now: Date, periodStart?: LocalDat
   const approved = new Map(approvals.map((a) => [a.employeeId, a]));
 
   const rows = employees
-    .map((employee) => ({
-      employee,
-      row: timesheetRow(employee.id, punches.get(employee.id) ?? [], period, now, { timeZone, missingClockOutHours }),
-      approval: approved.get(employee.id) ?? null,
-    }))
+    .map((employee) => {
+      const all = punches.get(employee.id) ?? [];
+      const row = timesheetRow(employee.id, all, period, now, { timeZone, missingClockOutHours });
+      // Punches to show for fixing: everything in the period, plus clock-outs of shifts that run past its end.
+      const spill = new Set(row.shifts.flatMap((s) => (s.clockOut ? [s.clockOut.id] : [])));
+      const listed = all.filter((p) => (p.at >= period.startsAt && p.at < period.endsAt) || spill.has(p.id));
+      return { employee, row, punches: listed, approval: approved.get(employee.id) ?? null };
+    })
     .filter(({ employee, row }) => employee.active || row.shifts.length > 0 || row.orphans.length > 0);
 
   return {

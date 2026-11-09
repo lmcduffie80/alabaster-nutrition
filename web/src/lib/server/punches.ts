@@ -1,5 +1,6 @@
 import "server-only";
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { z } from "zod";
 import { schema, type Db } from "@/db";
 import { currentStatus, isAllowed, punchKinds, type ClockStatus, type EffectivePunch, type PunchKind } from "@/lib/domain/punches";
 import { UserError } from "./errors";
@@ -154,6 +155,12 @@ export async function removePunch(db: Db, input: { punchId: string; reason: stri
       changedBy: input.changedBy,
     });
   });
+}
+
+export async function getPunch(db: Db, punchId: string) {
+  const [row] = z.uuid().safeParse(punchId).success ? await db.select().from(p).where(eq(p.id, punchId)) : [];
+  if (!row) throw new UserError("That punch no longer exists.");
+  return row;
 }
 
 export async function punchHistory(db: Db, punchIds: string[]) {

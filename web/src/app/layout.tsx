@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
+import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Great_Vibes } from "next/font/google";
 import "./globals.css";
 
@@ -15,14 +16,22 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Alabaster Nutrition — App Prototype",
-  description: "Clickable design prototype of the Alabaster Nutrition scheduling and timekeeping app.",
+  title: "Alabaster Nutrition",
+  description: "Time clock and schedule for Alabaster Nutrition.",
+  appleWebApp: { capable: true, title: "Alabaster", statusBarStyle: "default" },
+  robots: { index: false, follow: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#faf8f3",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${greatVibes.variable} ${cormorant.variable} h-full antialiased`}>
-      <body className="min-h-full font-sans">{children}</body>
+      <body className="min-h-full font-sans">
+        <ClerkProvider>{children}</ClerkProvider>
+      </body>
     </html>
   );
 }
