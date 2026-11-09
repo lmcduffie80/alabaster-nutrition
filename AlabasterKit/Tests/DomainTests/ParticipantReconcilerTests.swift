@@ -58,4 +58,15 @@ struct ParticipantReconcilerTests {
         )
         #expect(result.first?.colorIndex == 0)
     }
+
+    @Test func severalNewParticipantsGetConsecutiveColors() {
+        let result = ParticipantReconciler.newEmployees(
+            acceptedParticipants: [
+                ShareParticipantInfo(recordName: "_a", displayName: "Jordan Lee"),
+                ShareParticipantInfo(recordName: "_b", displayName: "Sam Rivera"),
+            ],
+            existing: [owner]
+        )
+        #expect(result.map(\.colorIndex) == [1, 2])
+    }
 }
