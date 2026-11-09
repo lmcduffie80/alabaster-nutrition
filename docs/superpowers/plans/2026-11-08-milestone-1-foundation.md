@@ -16,7 +16,7 @@
 
 - **Swift language modes:** `Domain`, `Brand`, and `Features` use Swift 6 mode. `Persistence`, `Sharing`, and the app shell use Swift 5 mode, because Core Data and CloudKit types are not `Sendable` and strict mode adds noise without safety benefit in that glue code.
 - **Running SwiftPM commands:** SwiftPM uses its own sandbox, which conflicts with agent sandboxes. Run every `swift build` / `swift test` command with the agent sandbox disabled.
-- **Command Line Tools only:** SwiftPM does not find the Swift Testing macro plugin without Xcode. Until Xcode is installed, append `-Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing` to every `swift build` and `swift test` command.
+- **Command Line Tools only:** SwiftPM does not find the Swift Testing macro plugin without Xcode. Only when the Command Line Tools are the selected developer directory (no Xcode), append `-Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing` to every `swift build` and `swift test` command. With Xcode selected (`xcode-select -p` points into `Xcode.app`), plain `swift build` / `swift test` work.
 - **Working directory:** all `swift` commands run from `AlabasterKit/`. All `git` commands run from the repository root.
 - **Tasks 1–13b need only the Command Line Tools.** Tasks 14–15 need full Xcode, XcodeGen, and an Apple Developer account.
 - **Deferred to Milestone 6 (polish):** the ginger-jar pattern illustration and the app icon. Both need artwork; this milestone uses the framed panel and wordmark only, and the app builds with the default icon.
@@ -61,7 +61,6 @@ AlabasterKit/
       CreateBusinessView.swift
       ManagerHomeView.swift
       EmployeeHomeView.swift
-      ViewState.swift             @State alias until builds use Xcode (removed in Task 14)
       Log.swift                   os.Logger, category "app"
   Tests/
     DomainTests/ BrandTests/
@@ -70,7 +69,8 @@ AlabasterKit/
     FeaturesTests/
       Fakes.swift                 fake repository and sharing
 App/
-  project.yml                     XcodeGen spec (iOS + macOS targets)
+  project.yml                     XcodeGen spec (iOS + macOS targets); the generated
+                                  AlabasterSchedule.xcodeproj and Generated/ are gitignored
   Sources/
     AlabasterScheduleApp.swift
     AppServices.swift
@@ -2880,7 +2880,7 @@ The revised spec clocks people in on the store iPad with a PIN, so the business 
 - Create: `App/Sources/IOSAppDelegate.swift`
 - Create: `App/Sources/MacAppDelegate.swift`
 
-- [ ] **Step 1: XcodeGen spec** — `App/project.yml`
+- [x] **Step 1: XcodeGen spec** — `App/project.yml`
 
 ```yaml
 name: AlabasterSchedule
@@ -2920,6 +2920,8 @@ targets:
       path: Generated/Info-iOS.plist
       properties:
         CFBundleDisplayName: Alabaster Schedule
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CKSharingSupported: true
         UIBackgroundModes: [remote-notification]
         UILaunchScreen: {}
@@ -2945,11 +2947,13 @@ targets:
       path: Generated/Info-macOS.plist
       properties:
         CFBundleDisplayName: Alabaster Schedule
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CKSharingSupported: true
     scheme: {}
 ```
 
-- [ ] **Step 2: Service wiring** — `App/Sources/AppServices.swift`
+- [x] **Step 2: Service wiring** — `App/Sources/AppServices.swift`
 
 ```swift
 import CloudKit
@@ -2995,7 +2999,7 @@ final class AppServices {
 }
 ```
 
-- [ ] **Step 3: App entry point** — `App/Sources/AlabasterScheduleApp.swift`
+- [x] **Step 3: App entry point** — `App/Sources/AlabasterScheduleApp.swift`
 
 ```swift
 import Brand
@@ -3022,7 +3026,7 @@ struct AlabasterScheduleApp: App {
 }
 ```
 
-- [ ] **Step 4: iOS invite acceptance** — `App/Sources/IOSAppDelegate.swift`
+- [x] **Step 4: iOS invite acceptance** — `App/Sources/IOSAppDelegate.swift`
 
 ```swift
 #if os(iOS)
@@ -3055,7 +3059,7 @@ final class IOSSceneDelegate: NSObject, UIWindowSceneDelegate {
 #endif
 ```
 
-- [ ] **Step 5: macOS invite acceptance** — `App/Sources/MacAppDelegate.swift`
+- [x] **Step 5: macOS invite acceptance** — `App/Sources/MacAppDelegate.swift`
 
 ```swift
 #if os(macOS)
@@ -3070,11 +3074,13 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
 #endif
 ```
 
-- [ ] **Step 6: Generate and build both platforms**
+- [x] **Step 6: Generate and build both platforms**
+
+`App/AlabasterSchedule.xcodeproj` and `App/Generated/` (entitlements and Info.plists) are gitignored: XcodeGen writes all of them from `project.yml`, so `project.yml` is the only source of truth. Regenerate after every `project.yml` change, after pulling, and after setting or changing the Team ID. The Team ID is optional here; when `ALABASTER_TEAM_ID` is unset, the project keeps `DEVELOPMENT_TEAM = ${ALABASTER_TEAM_ID}`, which resolves to empty, and the unsigned builds below still work.
 
 ```bash
 cd App
-export ALABASTER_TEAM_ID=<your 10-character Team ID from Task 0>
+export ALABASTER_TEAM_ID=<your 10-character Team ID from Task 0>   # optional until Task 15
 xcodegen generate
 xcodebuild -project AlabasterSchedule.xcodeproj -scheme AlabasterSchedule-iOS \
   -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
@@ -3084,9 +3090,21 @@ xcodebuild -project AlabasterSchedule.xcodeproj -scheme AlabasterSchedule-macOS 
 
 Expected: `** BUILD SUCCEEDED **` twice.
 
-- [ ] **Step 6b: Drop the `ViewState` alias.** Replace `@ViewState` with `@State` and delete `ViewState.swift` now that Xcode's macro plugins are available; re-test the create-business sheet.
+These builds are unsigned, so they carry no iCloud entitlements, and CloudKit traps at launch (`EXC_BREAKPOINT` in `PFCloudKitContainerProvider`). That is expected; Task 15 signs the app. To preview the iOS app in a simulator before then, build it ad hoc signed, which embeds the entitlements without a team, then install it with `xcrun simctl install`. With no iCloud account in the simulator, it shows the "Sign in to iCloud" screen:
 
-- [ ] **Step 7: Commit**
+```bash
+xcodebuild -project AlabasterSchedule.xcodeproj -scheme AlabasterSchedule-iOS \
+  -destination 'platform=iOS Simulator,id=<simulator UDID>' -derivedDataPath DerivedData \
+  CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual build
+```
+
+The macOS app cannot be previewed this way: macOS requires a provisioning profile for the iCloud entitlements.
+
+Done 2026-11-09 with Xcode 27.2 and no Team ID: both unsigned builds succeeded with no warnings from app sources, and the ad hoc signed iOS build showed the "Sign in to iCloud" screen in the simulator.
+
+- [x] **Step 6b: Drop the `ViewState` alias.** Replace `@ViewState` with `@State` and delete `ViewState.swift` now that Xcode's macro plugins are available; re-test the create-business sheet. Done: with Xcode selected, `swift build` and `swift test` (82 tests) pass without the `-plugin-path` flag. The create-business sheet itself is re-tested in Task 15, row 2, because the app cannot get past the iCloud check until it is signed.
+
+- [x] **Step 7: Commit**
 
 ```bash
 git add App AlabasterKit
@@ -3097,7 +3115,7 @@ git commit -m "feat(app): add iOS and macOS app shell with invite acceptance"
 
 ### Task 15: CloudKit setup and two-account test (manual, real devices)
 
-- [ ] **Step 1: Register the container.** Open `App/AlabasterSchedule.xcodeproj`, select each target → Signing & Capabilities, choose your team, and confirm the iCloud container `iCloud.com.alabasternutrition.schedule` is checked (Xcode creates it if missing). If the bundle ID is taken, change `PRODUCT_BUNDLE_IDENTIFIER` and the container name in `project.yml` and `AppServices.swift` together.
+- [ ] **Step 1: Register the container.** Set `ALABASTER_TEAM_ID` and run `xcodegen generate` (Task 14, Step 6) so the team survives regeneration. Open `App/AlabasterSchedule.xcodeproj`, select each target → Signing & Capabilities, confirm your team is selected, and confirm the iCloud container `iCloud.com.alabasternutrition.schedule` is checked (Xcode creates it if missing). If the bundle ID is taken, change `PRODUCT_BUNDLE_IDENTIFIER` and the container name in `project.yml` and `AppServices.swift` together.
 
 - [ ] **Step 2: Push the schema.** Edit the iOS scheme → Run → Arguments, add `-initializeCloudKitSchema`, run once on a device signed into iCloud, wait for `CloudKit schema initialized` in the console, then remove the argument. In CloudKit Console (icloud.developer.apple.com) → Development → Record Types, confirm `CD_Business` and `CD_Employee` exist.
 
