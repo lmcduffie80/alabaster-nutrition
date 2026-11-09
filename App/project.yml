@@ -24,6 +24,7 @@ targets:
         product: AlabasterKit
     settings:
       base:
+        PRODUCT_NAME: AlabasterSchedule
         TARGETED_DEVICE_FAMILY: "1,2"
     entitlements:
       path: Generated/AlabasterSchedule-iOS.entitlements
@@ -42,6 +43,12 @@ targets:
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     scheme: {}
   AlabasterSchedule-macOS:
     type: application
@@ -50,6 +57,9 @@ targets:
     dependencies:
       - package: AlabasterKit
         product: AlabasterKit
+    settings:
+      base:
+        PRODUCT_NAME: AlabasterSchedule
     entitlements:
       path: Generated/AlabasterSchedule-macOS.entitlements
       properties:

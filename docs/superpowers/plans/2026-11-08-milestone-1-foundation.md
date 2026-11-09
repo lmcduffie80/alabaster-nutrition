@@ -18,7 +18,7 @@
 - **Running SwiftPM commands:** SwiftPM uses its own sandbox, which conflicts with agent sandboxes. Run every `swift build` / `swift test` command with the agent sandbox disabled.
 - **Command Line Tools only:** SwiftPM does not find the Swift Testing macro plugin without Xcode. Only when the Command Line Tools are the selected developer directory (no Xcode), append `-Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing` to every `swift build` and `swift test` command. With Xcode selected (`xcode-select -p` points into `Xcode.app`), plain `swift build` / `swift test` work.
 - **Working directory:** all `swift` commands run from `AlabasterKit/`. All `git` commands run from the repository root.
-- **Tasks 1–13b need only the Command Line Tools.** Tasks 14–15 need full Xcode, XcodeGen, and an Apple Developer account.
+- **Tasks 1–13b need only the Command Line Tools.** Task 14 needs full Xcode and XcodeGen; Task 15 also needs an Apple Developer account.
 - **Deferred to Milestone 6 (polish):** the ginger-jar pattern illustration and the app icon. Both need artwork; this milestone uses the framed panel and wordmark only, and the app builds with the default icon.
 
 ## File structure
@@ -2909,6 +2909,7 @@ targets:
         product: AlabasterKit
     settings:
       base:
+        PRODUCT_NAME: AlabasterSchedule
         TARGETED_DEVICE_FAMILY: "1,2"
     entitlements:
       path: Generated/AlabasterSchedule-iOS.entitlements
@@ -2927,6 +2928,12 @@ targets:
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     scheme: {}
   AlabasterSchedule-macOS:
     type: application
@@ -2935,6 +2942,9 @@ targets:
     dependencies:
       - package: AlabasterKit
         product: AlabasterKit
+    settings:
+      base:
+        PRODUCT_NAME: AlabasterSchedule
     entitlements:
       path: Generated/AlabasterSchedule-macOS.entitlements
       properties:
@@ -3117,7 +3127,7 @@ git commit -m "feat(app): add iOS and macOS app shell with invite acceptance"
 
 - [ ] **Step 1: Register the container.** Set `ALABASTER_TEAM_ID` and run `xcodegen generate` (Task 14, Step 6) so the team survives regeneration. Open `App/AlabasterSchedule.xcodeproj`, select each target → Signing & Capabilities, confirm your team is selected, and confirm the iCloud container `iCloud.com.alabasternutrition.schedule` is checked (Xcode creates it if missing). If the bundle ID is taken, change `PRODUCT_BUNDLE_IDENTIFIER` and the container name in `project.yml` and `AppServices.swift` together.
 
-- [ ] **Step 2: Push the schema.** Edit the iOS scheme → Run → Arguments, add `-initializeCloudKitSchema`, run once on a device signed into iCloud, wait for `CloudKit schema initialized` in the console, then remove the argument. In CloudKit Console (icloud.developer.apple.com) → Development → Record Types, confirm `CD_Business` and `CD_Employee` exist.
+- [ ] **Step 2: Push the schema.** Edit the iOS scheme → Run → Arguments, add `-initializeCloudKitSchema`, run once from Xcode (the schema push blocks launch, so only run it under the debugger) on a device signed into iCloud, wait for `CloudKit schema initialized` in the console, then remove the argument. In CloudKit Console (icloud.developer.apple.com) → Development → Record Types, confirm `CD_Business` and `CD_Employee` exist.
 
 - [ ] **Step 3: Two-account test.** Device A (ideally the store iPad) is signed into the manager's Apple Account; device B, standing in for an employee's phone, is signed into a different Apple Account. Rows marked "(M5 groundwork)" test the invites and sharing the Milestone 5 phone app builds on.
 
