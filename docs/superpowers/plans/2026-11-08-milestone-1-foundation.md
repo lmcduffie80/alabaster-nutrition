@@ -2008,18 +2008,63 @@ actor FakeBusinessRepository: BusinessRepository {
 final class FakeSharing: BusinessSharing, @unchecked Sendable {
     var iCloudAvailable = true
     var participants: [ShareParticipantInfo] = []
+    var participantsError: (any Error)?
     private(set) var participantRequests = 0
 
     func isICloudAvailable() async -> Bool { iCloudAvailable }
 
     func acceptedParticipants() async throws -> [ShareParticipantInfo] {
         participantRequests += 1
+        if let participantsError { throw participantsError }
         return participants
     }
 
     func shareItem() -> BusinessShareItem {
         BusinessShareItem(containerIdentifier: "iCloud.test") { throw CKError(.notAuthenticated) }
     }
+}
+
+/// Holds every `acceptedParticipants()` call until `open()`, and records how many ran at once.
+actor GatedSharing: BusinessSharing {
+    private let participants: [ShareParticipantInfo]
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var inFlight = 0
+    private(set) var maxInFlight = 0
+    private(set) var participantRequests = 0
+
+    init(participants: [ShareParticipantInfo]) {
+        self.participants = participants
+    }
+
+    var waitingCount: Int { waiters.count }
+
+    func open() {
+        isOpen = true
+        waiters.forEach { $0.resume() }
+        waiters.removeAll()
+    }
+
+    func isICloudAvailable() async -> Bool { true }
+
+    func acceptedParticipants() async throws -> [ShareParticipantInfo] {
+        participantRequests += 1
+        inFlight += 1
+        maxInFlight = max(maxInFlight, inFlight)
+        defer { inFlight -= 1 }
+        if !isOpen {
+            await withCheckedContinuation { waiters.append($0) }
+        }
+        return participants
+    }
+
+    nonisolated func shareItem() -> BusinessShareItem {
+        BusinessShareItem(containerIdentifier: "iCloud.test") { throw CKError(.notAuthenticated) }
+    }
+}
+
+struct FakeError: LocalizedError {
+    var errorDescription: String? { "The network went away." }
 }
 
 enum Sample {
@@ -2102,10 +2147,105 @@ struct AppModelTests {
         #expect(model.shareItem() == nil)
     }
 
+    @Test func overlappingRefreshesRunOneAtATimeAndCoalesce() async {
+        let repository = FakeBusinessRepository()
+        await repository.setMembership(.owner(Sample.business), employees: [Sample.owner])
+        let sharing = GatedSharing(participants: [ShareParticipantInfo(recordName: "_a", displayName: "Jordan Lee")])
+        let model = AppModel(repository: repository, sharing: sharing)
+
+        let first = Task { await model.refresh() }
+        await waitUntil { await sharing.waitingCount == 1 }
+        let second = Task { await model.refresh() }
+        let third = Task { await model.refresh() }
+        await waitUntil { model.refreshRequested }
+
+        await sharing.open()
+        await first.value
+        await second.value
+        await third.value
+
+        #expect(await sharing.maxInFlight == 1)
+        #expect(await sharing.participantRequests == 2)
+        #expect(await repository.added.map(\.participantRecordName) == ["_a"])
+        #expect(model.employees.map(\.displayName) == ["Owner", "Jordan Lee"])
+    }
+
+    @Test func aRefreshDoesNotHideAnInviteError() async {
+        let repository = FakeBusinessRepository()
+        await repository.setMembership(.owner(Sample.business), employees: [Sample.owner])
+        let sharing = GatedSharing(participants: [])
+        let model = AppModel(repository: repository, sharing: sharing)
+
+        let refresh = Task { await model.refresh() }
+        await waitUntil { await sharing.waitingCount == 1 }
+        await model.acceptInvitation { throw FakeError() }
+        await sharing.open()
+        await refresh.value
+        #expect(model.loadState == .failed("The invite couldn't be accepted: The network went away."))
+
+        await model.retry()
+        #expect(model.loadState == .loaded)
+        #expect(model.role == .manager)
+    }
+
+    @Test func aReconciliationFailureStillLoadsTheBusiness() async {
+        let repository = FakeBusinessRepository()
+        await repository.setMembership(.owner(Sample.business), employees: [Sample.owner])
+        let sharing = FakeSharing()
+        sharing.participantsError = FakeError()
+
+        let model = AppModel(repository: repository, sharing: sharing)
+        await model.refresh()
+
+        #expect(model.loadState == .loaded)
+        #expect(model.role == .manager)
+        #expect(model.employees.map(\.displayName) == ["Owner"])
+    }
+
+    @Test func joiningWaitsForTheSharedBusinessToSync() async {
+        let repository = FakeBusinessRepository()
+        let model = AppModel(repository: repository, sharing: FakeSharing())
+
+        await model.acceptInvitation {}
+        #expect(model.loadState == .joining)
+
+        await repository.setMembership(.member(Sample.business), employees: [Sample.owner])
+        await model.refresh()
+        #expect(model.loadState == .loaded)
+        #expect(model.role == .employee)
+
+        await repository.setMembership(.none, employees: [])
+        await model.refresh()
+        #expect(model.loadState == .loaded)
+        #expect(model.role == .needsSetup)
+    }
+
+    @Test func aFailedInviteShowsTheErrorAndStopsJoining() async {
+        let model = AppModel(repository: FakeBusinessRepository(), sharing: FakeSharing())
+
+        await model.acceptInvitation { throw FakeError() }
+        #expect(model.loadState == .failed("The invite couldn't be accepted: The network went away."))
+
+        await model.retry()
+        #expect(model.loadState == .loaded)
+        #expect(model.role == .needsSetup)
+    }
+
     @Test func showErrorSetsFailedState() {
         let model = AppModel(repository: FakeBusinessRepository(), sharing: FakeSharing())
         model.showError("Invite could not be accepted.")
         #expect(model.loadState == .failed("Invite could not be accepted."))
+    }
+
+    private func waitUntil(
+        _ condition: () async -> Bool,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) async {
+        for _ in 0..<1_000 {
+            if await condition() { return }
+            await Task.yield()
+        }
+        Issue.record("Timed out waiting for condition", sourceLocation: sourceLocation)
     }
 }
 ```
@@ -2116,6 +2256,8 @@ Run: `swift test --filter AppModelTests`
 Expected: build error `cannot find 'AppModel' in scope`.
 
 - [ ] **Step 5: Implement** — `AlabasterKit/Sources/Features/AppModel.swift`
+
+Behaviors the tests pin down: refreshes run one at a time and overlapping calls coalesce into one follow-up run; participant reconciliation is best effort; accepting an invite shows `.joining` until the shared business syncs; an error from `showError(_:)` stays visible until `retry()` (only `.iCloudUnavailable` outranks it).
 
 ```swift
 import Domain
@@ -2129,6 +2271,7 @@ public final class AppModel {
     public enum LoadState: Equatable, Sendable {
         case loading
         case loaded
+        case joining
         case iCloudUnavailable
         case failed(String)
     }
@@ -2141,31 +2284,84 @@ public final class AppModel {
 
     private let repository: any BusinessRepository
     private let sharing: any BusinessSharing
+    @ObservationIgnored private var runningRefresh: Task<Void, Never>?
+    @ObservationIgnored var refreshRequested = false
+    @ObservationIgnored private var isJoining = false
+    /// Set by `showError(_:)` and kept until `retry()`, so a background refresh cannot hide it.
+    @ObservationIgnored private var pendingError: String?
 
     public init(repository: any BusinessRepository, sharing: any BusinessSharing) {
         self.repository = repository
         self.sharing = sharing
     }
 
+    /// Runs one refresh at a time, so two owner refreshes cannot both add the same participant.
+    /// Calls that arrive mid-refresh coalesce into a single follow-up run and return once it finishes.
     public func refresh() async {
+        if let runningRefresh {
+            refreshRequested = true
+            await runningRefresh.value
+            return
+        }
+        let task = Task {
+            repeat {
+                refreshRequested = false
+                await performRefresh()
+            } while refreshRequested
+            runningRefresh = nil
+        }
+        runningRefresh = task
+        await task.value
+    }
+
+    /// Clears a pending error and refreshes. Backs the "Try Again" buttons.
+    public func retry() async {
+        pendingError = nil
+        await refresh()
+    }
+
+    /// A pending error outranks every state except `.iCloudUnavailable`, which the user must fix first;
+    /// the error shows again once iCloud is back, until `retry()`.
+    private func performRefresh() async {
         guard await sharing.isICloudAvailable() else {
             loadState = .iCloudUnavailable
             return
         }
+        let state: LoadState
         do {
             membership = try await repository.membership()
             if case .owner = membership {
-                try await reconcileParticipants()
+                try? await reconcileParticipants()
             }
             employees = membership.business == nil ? [] : try await repository.employees()
-            loadState = .loaded
+            if membership != .none {
+                isJoining = false
+            }
+            state = isJoining ? .joining : .loaded
         } catch {
-            loadState = .failed(error.localizedDescription)
+            state = .failed(error.localizedDescription)
         }
+        loadState = pendingError.map(LoadState.failed) ?? state
     }
 
     public func createBusiness(_ draft: BusinessDraft) async throws {
         _ = try await repository.createBusiness(from: draft)
+        await refresh()
+    }
+
+    /// Accepts an invite, then stays in `.joining` until the shared business syncs down,
+    /// so the new employee is not sent to business setup in the meantime.
+    public func acceptInvitation(_ accept: @escaping @Sendable () async throws -> Void) async {
+        pendingError = nil
+        isJoining = true
+        loadState = .joining
+        do {
+            try await accept()
+        } catch {
+            isJoining = false
+            showError("The invite couldn't be accepted: \(error.localizedDescription)")
+            return
+        }
         await refresh()
     }
 
@@ -2175,9 +2371,11 @@ public final class AppModel {
     }
 
     public func showError(_ message: String) {
+        pendingError = message
         loadState = .failed(message)
     }
 
+    /// Best effort: a failure here leaves new participants for the next refresh to add.
     private func reconcileParticipants() async throws {
         let participants = try await sharing.acceptedParticipants()
         let newEmployees = ParticipantReconciler.newEmployees(
@@ -2194,7 +2392,7 @@ public final class AppModel {
 - [ ] **Step 6: Run tests to verify they pass**
 
 Run: `swift test --filter AppModelTests`
-Expected: 7 tests pass.
+Expected: 12 tests pass.
 
 - [ ] **Step 7: Commit**
 
@@ -2234,7 +2432,10 @@ public struct RootView: View {
         content
             .tint(BrandPalette.porcelain.color)
             .task { await model.refresh() }
-            .onReceive(NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange)) { _ in
+            .onReceive(
+                NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange)
+                    .receive(on: DispatchQueue.main)
+            ) { _ in
                 Task { await model.refresh() }
             }
     }
@@ -2248,10 +2449,13 @@ public struct RootView: View {
             unavailable(
                 title: "Sign in to iCloud",
                 symbol: "icloud.slash",
-                message: "Alabaster Schedule keeps your team's schedule in iCloud. Open Settings, sign in with your Apple Account, make sure iCloud is on for this app, then try again."
+                message: "Alabaster Schedule keeps your team's schedule in iCloud. Open Settings, sign in with your Apple Account, make sure iCloud is on for this app, then try again.",
+                action: { await model.refresh() }
             )
         case .failed(let message):
-            unavailable(title: "Something went wrong", symbol: "exclamationmark.triangle", message: message)
+            unavailable(title: "Something went wrong", symbol: "exclamationmark.triangle", message: message) {
+                await model.retry()
+            }
         case .joining:
             ContentUnavailableView {
                 Label("Joining your team…", systemImage: "person.2")
@@ -2259,7 +2463,7 @@ public struct RootView: View {
                 ProgressView()
                 Text("Your business is syncing from iCloud. This can take a minute.")
             } actions: {
-                Button("Try Again") { Task { await model.refresh() } }
+                Button("Try Again") { Task { await model.retry() } }
                     .buttonStyle(.borderedProminent)
             }
         case .loaded:
@@ -2271,13 +2475,16 @@ public struct RootView: View {
         }
     }
 
-    private func unavailable(title: String, symbol: String, message: String) -> some View {
+    private func unavailable(
+        title: String, symbol: String, message: String,
+        action: @escaping @MainActor @Sendable () async -> Void
+    ) -> some View {
         ContentUnavailableView {
             Label(title, systemImage: symbol)
         } description: {
             Text(message)
         } actions: {
-            Button("Try Again") { Task { await model.refresh() } }
+            Button("Try Again") { Task { await action() } }
                 .buttonStyle(.borderedProminent)
         }
     }
