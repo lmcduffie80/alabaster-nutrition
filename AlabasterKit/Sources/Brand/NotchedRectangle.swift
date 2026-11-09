@@ -9,23 +9,36 @@ public struct NotchedRectangle: InsettableShape {
         self.notch = notch
     }
 
+    public var animatableData: CGFloat {
+        get { notch }
+        set { notch = newValue }
+    }
+
     public func path(in rect: CGRect) -> Path {
-        let r = rect.insetBy(dx: insetAmount, dy: insetAmount)
-        let n = min(notch, r.width / 2, r.height / 2)
+        let inner = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        guard !inner.isNull, inner.width > 0, inner.height > 0 else { return Path() }
+        let n = max(0, min(notch, rect.width / 2, rect.height / 2))
+        guard n > 0 else { return Path(inner) }
+
+        // Arcs stay centred on the original corners so inset outlines are concentric with the fill.
+        let radius = n + insetAmount
+        let offset = Angle.radians(asin(insetAmount / radius))
+        let corners: [(center: CGPoint, start: Double)] = [
+            (CGPoint(x: rect.maxX, y: rect.minY), 180),
+            (CGPoint(x: rect.maxX, y: rect.maxY), 270),
+            (CGPoint(x: rect.minX, y: rect.maxY), 360),
+            (CGPoint(x: rect.minX, y: rect.minY), 90),
+        ]
         var path = Path()
-        path.move(to: CGPoint(x: r.minX + n, y: r.minY))
-        path.addLine(to: CGPoint(x: r.maxX - n, y: r.minY))
-        path.addArc(center: CGPoint(x: r.maxX, y: r.minY), radius: n,
-                    startAngle: .degrees(180), endAngle: .degrees(90), clockwise: true)
-        path.addLine(to: CGPoint(x: r.maxX, y: r.maxY - n))
-        path.addArc(center: CGPoint(x: r.maxX, y: r.maxY), radius: n,
-                    startAngle: .degrees(270), endAngle: .degrees(180), clockwise: true)
-        path.addLine(to: CGPoint(x: r.minX + n, y: r.maxY))
-        path.addArc(center: CGPoint(x: r.minX, y: r.maxY), radius: n,
-                    startAngle: .degrees(360), endAngle: .degrees(270), clockwise: true)
-        path.addLine(to: CGPoint(x: r.minX, y: r.minY + n))
-        path.addArc(center: CGPoint(x: r.minX, y: r.minY), radius: n,
-                    startAngle: .degrees(90), endAngle: .degrees(0), clockwise: true)
+        for corner in corners {
+            path.addArc(
+                center: corner.center,
+                radius: radius,
+                startAngle: .degrees(corner.start) - offset,
+                endAngle: .degrees(corner.start - 90) + offset,
+                clockwise: true
+            )
+        }
         path.closeSubpath()
         return path
     }

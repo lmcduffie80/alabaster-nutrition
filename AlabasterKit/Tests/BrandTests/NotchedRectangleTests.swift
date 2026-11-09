@@ -30,4 +30,32 @@ struct NotchedRectangleTests {
         #expect(!path.contains(CGPoint(x: 100, y: 5)))
         #expect(path.contains(CGPoint(x: 100, y: 15)))
     }
+
+    @Test func zeroRectGivesAnEmptyPath() {
+        #expect(NotchedRectangle().path(in: .zero).isEmpty)
+    }
+
+    @Test func overInsetGivesAnEmptyPath() {
+        #expect(NotchedRectangle().inset(by: 60).path(in: rect).isEmpty)
+    }
+
+    @Test func zeroNotchIsAPlainRectangle() {
+        let path = NotchedRectangle(notch: 0).path(in: rect)
+        #expect(path.contains(CGPoint(x: 1, y: 1)))
+        #expect(path.boundingRect == rect)
+    }
+
+    @Test(arguments: [CGPoint(x: 1, y: 13), CGPoint(x: 13, y: 1)])
+    func cornersCurveInwardNotOutward(point: CGPoint) {
+        // Inside a rounded corner of radius 14, but outside a concave notch.
+        #expect(!NotchedRectangle(notch: 14).path(in: rect).contains(point))
+    }
+
+    @Test func insetCornersAreConcentric() {
+        let path = NotchedRectangle(notch: 14).inset(by: 5).path(in: rect)
+        let diagonal = 1 / 2.0.squareRoot()
+        // Arc of radius 19 centred on the original corner (0, 0).
+        #expect(!path.contains(CGPoint(x: 18 * diagonal, y: 18 * diagonal)))
+        #expect(path.contains(CGPoint(x: 20 * diagonal, y: 20 * diagonal)))
+    }
 }
