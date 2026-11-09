@@ -4,34 +4,33 @@ public enum BusinessDraftError: Error, Hashable, Sendable, CaseIterable {
     case emptyName
     case emptyOwnerName
     case unknownTimeZone
-    case invalidWorkplace
-    case radiusOutOfRange
     case missingClockOutOutOfRange
+    case kioskAutoReturnOutOfRange
 
     public var message: String {
         switch self {
         case .emptyName: "Enter the business name."
         case .emptyOwnerName: "Enter your name."
         case .unknownTimeZone: "Choose a valid time zone."
-        case .invalidWorkplace: "The workplace location is invalid."
-        case .radiusOutOfRange: "Clock-in distance must be between 50 and 1,000 meters."
         case .missingClockOutOutOfRange: "The missing clock-out reminder must be between 4 and 24 hours."
+        case .kioskAutoReturnOutOfRange: "Return to keypad must be between 5 and 60 seconds."
         }
     }
 }
 
 public struct BusinessDraft: Equatable, Sendable {
-    public static let allowedRadiusRange: ClosedRange<Double> = 50...1_000
     public static let missingClockOutRange: ClosedRange<Double> = 4...24
+    public static let kioskAutoReturnRange: ClosedRange<Double> = 5...60
+    public static let defaultMissingClockOutHours: Double = 12
+    public static let defaultKioskAutoReturnSeconds: Double = 10
 
     public var name: String
     public var ownerName: String
     public var timeZoneIdentifier: String
     public var payPeriodRule: PayPeriodRule
     public var payPeriodAnchor: Date
-    public var workplace: Coordinate
-    public var allowedRadiusMeters: Double
     public var missingClockOutHours: Double
+    public var kioskAutoReturnSeconds: Double
 
     public init(
         name: String,
@@ -39,21 +38,18 @@ public struct BusinessDraft: Equatable, Sendable {
         timeZoneIdentifier: String,
         payPeriodRule: PayPeriodRule,
         payPeriodAnchor: Date,
-        workplace: Coordinate,
-        allowedRadiusMeters: Double,
-        missingClockOutHours: Double
+        missingClockOutHours: Double,
+        kioskAutoReturnSeconds: Double
     ) {
         self.name = name
         self.ownerName = ownerName
         self.timeZoneIdentifier = timeZoneIdentifier
         self.payPeriodRule = payPeriodRule
         self.payPeriodAnchor = payPeriodAnchor
-        self.workplace = workplace
-        self.allowedRadiusMeters = allowedRadiusMeters
         self.missingClockOutHours = missingClockOutHours
+        self.kioskAutoReturnSeconds = kioskAutoReturnSeconds
     }
 
-    /// 101 E Front St, Sylvester, GA. The coordinate is approximate; the map picker in Milestone 3 refines it.
     public static func alabasterDefaults(ownerName: String, payPeriodAnchor: Date) -> BusinessDraft {
         BusinessDraft(
             name: "Alabaster Nutrition",
@@ -61,9 +57,8 @@ public struct BusinessDraft: Equatable, Sendable {
             timeZoneIdentifier: "America/New_York",
             payPeriodRule: .weekly,
             payPeriodAnchor: payPeriodAnchor,
-            workplace: Coordinate(latitude: 31.5296, longitude: -83.8354),
-            allowedRadiusMeters: 150,
-            missingClockOutHours: 12
+            missingClockOutHours: defaultMissingClockOutHours,
+            kioskAutoReturnSeconds: defaultKioskAutoReturnSeconds
         )
     }
 
@@ -72,9 +67,8 @@ public struct BusinessDraft: Equatable, Sendable {
         if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { errors.append(.emptyName) }
         if ownerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { errors.append(.emptyOwnerName) }
         if TimeZone(identifier: timeZoneIdentifier) == nil { errors.append(.unknownTimeZone) }
-        if !workplace.isValid { errors.append(.invalidWorkplace) }
-        if !Self.allowedRadiusRange.contains(allowedRadiusMeters) { errors.append(.radiusOutOfRange) }
         if !Self.missingClockOutRange.contains(missingClockOutHours) { errors.append(.missingClockOutOutOfRange) }
+        if !Self.kioskAutoReturnRange.contains(kioskAutoReturnSeconds) { errors.append(.kioskAutoReturnOutOfRange) }
         return errors
     }
 }

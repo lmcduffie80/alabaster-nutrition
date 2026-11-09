@@ -44,10 +44,8 @@ public final class CoreDataBusinessRepository: BusinessRepository, @unchecked Se
             business.setValue(draft.timeZoneIdentifier, forKey: "timeZoneIdentifier")
             business.setValue(draft.payPeriodRule.rawValue, forKey: "payPeriodRule")
             business.setValue(draft.payPeriodAnchor, forKey: "payPeriodAnchor")
-            business.setValue(draft.workplace.latitude, forKey: "workplaceLatitude")
-            business.setValue(draft.workplace.longitude, forKey: "workplaceLongitude")
-            business.setValue(draft.allowedRadiusMeters, forKey: "allowedRadiusMeters")
             business.setValue(draft.missingClockOutHours, forKey: "missingClockOutHours")
+            business.setValue(draft.kioskAutoReturnSeconds, forKey: "kioskAutoReturnSeconds")
             business.setValue(createdAt, forKey: "createdAt")
 
             let owner = NSEntityDescription.insertNewObject(forEntityName: EntityName.employee, into: context)

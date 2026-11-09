@@ -14,9 +14,14 @@ struct BusinessDraftTests {
         #expect(draft.name == "Alabaster Nutrition")
         #expect(draft.timeZoneIdentifier == "America/New_York")
         #expect(draft.payPeriodRule == .weekly)
-        #expect(draft.workplace == Coordinate(latitude: 31.5296, longitude: -83.8354))
-        #expect(draft.allowedRadiusMeters == 150)
         #expect(draft.missingClockOutHours == 12)
+        #expect(draft.kioskAutoReturnSeconds == 10)
+    }
+
+    @Test func defaultsUseTheSharedConstants() {
+        let draft = validDraft()
+        #expect(draft.missingClockOutHours == BusinessDraft.defaultMissingClockOutHours)
+        #expect(draft.kioskAutoReturnSeconds == BusinessDraft.defaultKioskAutoReturnSeconds)
     }
 
     @Test func defaultsAreValid() {
@@ -36,31 +41,11 @@ struct BusinessDraftTests {
         #expect(draft.validationErrors() == [.unknownTimeZone])
     }
 
-    @Test func invalidWorkplaceIsRejected() {
-        var draft = validDraft()
-        draft.workplace = Coordinate(latitude: 120, longitude: 0)
-        #expect(draft.validationErrors() == [.invalidWorkplace])
-    }
-
-    @Test(arguments: [49.0, 1_001.0])
-    func radiusOutsideRangeIsRejected(radius: Double) {
-        var draft = validDraft()
-        draft.allowedRadiusMeters = radius
-        #expect(draft.validationErrors() == [.radiusOutOfRange])
-    }
-
     @Test(arguments: [3.0, 25.0])
     func missingClockOutOutsideRangeIsRejected(hours: Double) {
         var draft = validDraft()
         draft.missingClockOutHours = hours
         #expect(draft.validationErrors() == [.missingClockOutOutOfRange])
-    }
-
-    @Test(arguments: [50.0, 1_000.0])
-    func radiusAtRangeLimitsIsAccepted(radius: Double) {
-        var draft = validDraft()
-        draft.allowedRadiusMeters = radius
-        #expect(draft.validationErrors().isEmpty)
     }
 
     @Test(arguments: [4.0, 24.0])
@@ -70,9 +55,28 @@ struct BusinessDraftTests {
         #expect(draft.validationErrors().isEmpty)
     }
 
+    @Test(arguments: [4.9, 61.0])
+    func kioskAutoReturnOutsideRangeIsRejected(seconds: Double) {
+        var draft = validDraft()
+        draft.kioskAutoReturnSeconds = seconds
+        #expect(draft.validationErrors() == [.kioskAutoReturnOutOfRange])
+    }
+
+    @Test(arguments: [5.0, 60.0])
+    func kioskAutoReturnAtRangeLimitsIsAccepted(seconds: Double) {
+        var draft = validDraft()
+        draft.kioskAutoReturnSeconds = seconds
+        #expect(draft.validationErrors().isEmpty)
+    }
+
     @Test func everyErrorHasAMessage() {
         for error in BusinessDraftError.allCases {
             #expect(!error.message.isEmpty)
         }
+    }
+
+    @Test func kioskAutoReturnMessageNamesTheRange() {
+        #expect(BusinessDraftError.kioskAutoReturnOutOfRange.message
+            == "Return to keypad must be between 5 and 60 seconds.")
     }
 }

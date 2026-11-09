@@ -29,8 +29,8 @@ actor FakeBusinessRepository: BusinessRepository {
         let business = Business(
             id: UUID(), name: draft.name, timeZoneIdentifier: draft.timeZoneIdentifier,
             payPeriodRule: draft.payPeriodRule, payPeriodAnchor: draft.payPeriodAnchor,
-            workplace: draft.workplace, allowedRadiusMeters: draft.allowedRadiusMeters,
-            missingClockOutHours: draft.missingClockOutHours
+            missingClockOutHours: draft.missingClockOutHours,
+            kioskAutoReturnSeconds: draft.kioskAutoReturnSeconds
         )
         membershipValue = .owner(business)
         employeeList = [Employee(
@@ -119,8 +119,7 @@ enum Sample {
     static let business = Business(
         id: UUID(), name: "Alabaster Nutrition", timeZoneIdentifier: "America/New_York",
         payPeriodRule: .weekly, payPeriodAnchor: Date(timeIntervalSince1970: 0),
-        workplace: Coordinate(latitude: 31.5296, longitude: -83.8354),
-        allowedRadiusMeters: 150, missingClockOutHours: 12
+        missingClockOutHours: 12, kioskAutoReturnSeconds: 10
     )
 
     static let owner = Employee(

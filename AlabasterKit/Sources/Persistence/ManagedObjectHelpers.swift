@@ -34,12 +34,10 @@ enum Mapping {
             timeZoneIdentifier: object.value(forKey: "timeZoneIdentifier") as? String ?? TimeZone.current.identifier,
             payPeriodRule: (object.value(forKey: "payPeriodRule") as? String).flatMap(PayPeriodRule.init(rawValue:)) ?? .weekly,
             payPeriodAnchor: object.value(forKey: "payPeriodAnchor") as? Date ?? Date(timeIntervalSince1970: 0),
-            workplace: Coordinate(
-                latitude: (object.value(forKey: "workplaceLatitude") as? NSNumber)?.doubleValue ?? 0,
-                longitude: (object.value(forKey: "workplaceLongitude") as? NSNumber)?.doubleValue ?? 0
-            ),
-            allowedRadiusMeters: (object.value(forKey: "allowedRadiusMeters") as? NSNumber)?.doubleValue ?? 150,
-            missingClockOutHours: (object.value(forKey: "missingClockOutHours") as? NSNumber)?.doubleValue ?? 12
+            missingClockOutHours: (object.value(forKey: "missingClockOutHours") as? NSNumber)?.doubleValue
+                ?? BusinessDraft.defaultMissingClockOutHours,
+            kioskAutoReturnSeconds: (object.value(forKey: "kioskAutoReturnSeconds") as? NSNumber)?.doubleValue
+                ?? BusinessDraft.defaultKioskAutoReturnSeconds
         )
     }
 

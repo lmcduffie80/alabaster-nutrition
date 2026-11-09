@@ -1,4 +1,5 @@
 import CoreData
+import Domain
 
 /// Once the CloudKit schema is deployed, changes must be additive: new optional/defaulted attributes or entities only; never rename or remove.
 public enum AlabasterModel {
@@ -39,10 +40,8 @@ public enum AlabasterModel {
             attribute("timeZoneIdentifier", .stringAttributeType),
             attribute("payPeriodRule", .stringAttributeType),
             attribute("payPeriodAnchor", .dateAttributeType),
-            attribute("workplaceLatitude", .doubleAttributeType, default: NSNumber(value: 0.0)),
-            attribute("workplaceLongitude", .doubleAttributeType, default: NSNumber(value: 0.0)),
-            attribute("allowedRadiusMeters", .doubleAttributeType, default: NSNumber(value: 150.0)),
-            attribute("missingClockOutHours", .doubleAttributeType, default: NSNumber(value: 12.0)),
+            attribute("missingClockOutHours", .doubleAttributeType, default: NSNumber(value: BusinessDraft.defaultMissingClockOutHours)),
+            attribute("kioskAutoReturnSeconds", .doubleAttributeType, default: NSNumber(value: BusinessDraft.defaultKioskAutoReturnSeconds)),
             attribute("createdAt", .dateAttributeType),
             employees,
         ]

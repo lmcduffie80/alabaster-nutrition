@@ -36,17 +36,13 @@ struct CreateBusinessView: View {
                     }
                     DatePicker("First period starts", selection: $draft.payPeriodAnchor, displayedComponents: .date)
                 }
-                Section {
-                    Stepper(value: $draft.allowedRadiusMeters, in: BusinessDraft.allowedRadiusRange, step: 25) {
-                        LabeledContent("Clock-in distance", value: "\(Int(draft.allowedRadiusMeters)) m")
-                    }
+                Section("Kiosk") {
                     Stepper(value: $draft.missingClockOutHours, in: BusinessDraft.missingClockOutRange, step: 1) {
                         LabeledContent("Missing clock-out after", value: "\(Int(draft.missingClockOutHours)) h")
                     }
-                } header: {
-                    Text("Time clock")
-                } footer: {
-                    Text("Workplace: 101 E Front St, Sylvester, GA. You can fine-tune the location on a map later.")
+                    Stepper(value: $draft.kioskAutoReturnSeconds, in: BusinessDraft.kioskAutoReturnRange, step: 5) {
+                        LabeledContent("Return to keypad after", value: "\(Int(draft.kioskAutoReturnSeconds)) s")
+                    }
                 }
                 if !errors.isEmpty || saveError != nil {
                     Section {

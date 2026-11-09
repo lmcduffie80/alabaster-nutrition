@@ -30,10 +30,45 @@ struct CoreDataBusinessRepositoryTests {
         #expect(created.timeZoneIdentifier == "America/New_York")
         #expect(created.payPeriodRule == .weekly)
         #expect(created.payPeriodAnchor == anchor)
-        #expect(created.workplace == Coordinate(latitude: 31.5296, longitude: -83.8354))
-        #expect(created.allowedRadiusMeters == 150)
         #expect(created.missingClockOutHours == 12)
+        #expect(created.kioskAutoReturnSeconds == 10)
         #expect(try await repository.membership() == .owner(created))
+    }
+
+    @Test func timeClockSettingsRoundTrip() async throws {
+        let (repository, _) = try makeRepository()
+        var custom = draft()
+        custom.missingClockOutHours = 8
+        custom.kioskAutoReturnSeconds = 30
+
+        let created = try await repository.createBusiness(from: custom)
+
+        #expect(created.missingClockOutHours == 8)
+        #expect(created.kioskAutoReturnSeconds == 30)
+        guard case .owner(let fetched) = try await repository.membership() else {
+            Issue.record("Expected owner")
+            return
+        }
+        #expect(fetched.missingClockOutHours == 8)
+        #expect(fetched.kioskAutoReturnSeconds == 30)
+    }
+
+    @Test func aBusinessWithoutTimeClockSettingsUsesTheDefaults() async throws {
+        let (repository, controller) = try makeRepository()
+        let context = controller.newBackgroundContext()
+        try await context.perform {
+            let object = NSEntityDescription.insertNewObject(forEntityName: EntityName.business, into: context)
+            context.assign(object, to: controller.privateStore)
+            object.setValue(UUID(), forKey: "id")
+            object.setValue(nil, forKey: "missingClockOutHours")
+            object.setValue(nil, forKey: "kioskAutoReturnSeconds")
+            object.setValue(Date(), forKey: "createdAt")
+            try context.save()
+        }
+
+        let business = try #require(try await repository.membership().business)
+        #expect(business.missingClockOutHours == BusinessDraft.defaultMissingClockOutHours)
+        #expect(business.kioskAutoReturnSeconds == BusinessDraft.defaultKioskAutoReturnSeconds)
     }
 
     @Test func creatingABusinessAddsTheOwnerAsManager() async throws {
