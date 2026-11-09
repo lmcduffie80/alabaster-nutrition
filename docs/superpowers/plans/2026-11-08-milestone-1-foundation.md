@@ -98,16 +98,12 @@ Expected: `Apple Swift version 6.x`.
 
 - [ ] **Step 1: Extend `.gitignore`**
 
-Replace the file contents with:
+Keep the existing entries (other projects in the repo rely on them) and append:
 
 ```
-.DS_Store
-xcuserdata/
-DerivedData/
-*.xcuserstate
-.build/
 .swiftpm/
 App/AlabasterSchedule.xcodeproj/
+App/Generated/
 ```
 
 - [ ] **Step 2: Create `AlabasterKit/Package.swift`**
@@ -2579,8 +2575,6 @@ targets:
     scheme: {}
 ```
 
-Add `App/Generated/` to `.gitignore`.
-
 - [ ] **Step 2: Service wiring** — `App/Sources/AppServices.swift`
 
 ```swift
@@ -2724,7 +2718,7 @@ Expected: `** BUILD SUCCEEDED **` twice.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add .gitignore App
+git add App
 git commit -m "feat(app): add iOS and macOS app shell with invite acceptance"
 ```
 
