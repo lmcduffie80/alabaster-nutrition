@@ -40,6 +40,7 @@ AlabasterKit/
       NotchedRectangle.swift      notched-corner panel shape
       FramedPanel.swift           sage panel with dark + gilt frame
       AlabasterWordmark.swift     script/serif wordmark view
+      BrandProminentButtonStyle.swift  filled brand button style
       Resources/Fonts/            Allura, Cormorant Garamond, OFL licenses
     Persistence/
       AlabasterModel.swift        programmatic Core Data model
@@ -51,6 +52,7 @@ AlabasterKit/
       BusinessSharing.swift       protocol used by Features
       BusinessShareItem.swift     Transferable wrapper for ShareLink
       CloudKitBusinessSharing.swift
+      Log.swift                   os.Logger, category "sharing"
     Features/
       AppModel.swift              app state, role, refresh, reconcile
       RootView.swift              routes by load state and role
@@ -58,8 +60,14 @@ AlabasterKit/
       CreateBusinessView.swift
       ManagerHomeView.swift
       EmployeeHomeView.swift
+      ViewState.swift             @State alias until builds use Xcode (removed in Task 14)
+      Log.swift                   os.Logger, category "app"
   Tests/
-    DomainTests/ BrandTests/ PersistenceTests/ FeaturesTests/
+    DomainTests/ BrandTests/
+    PersistenceTests/
+      StepClock.swift             increasing clock for createdAt ordering
+    FeaturesTests/
+      Fakes.swift                 fake repository and sharing
 App/
   project.yml                     XcodeGen spec (iOS + macOS targets)
   Sources/
@@ -3050,10 +3058,12 @@ xcodebuild -project AlabasterSchedule.xcodeproj -scheme AlabasterSchedule-macOS 
 
 Expected: `** BUILD SUCCEEDED **` twice.
 
+- [ ] **Step 6b: Drop the `ViewState` alias.** Replace `@ViewState` with `@State` and delete `ViewState.swift` now that Xcode's macro plugins are available; re-test the create-business sheet.
+
 - [ ] **Step 7: Commit**
 
 ```bash
-git add App
+git add App AlabasterKit
 git commit -m "feat(app): add iOS and macOS app shell with invite acceptance"
 ```
 
@@ -3075,7 +3085,7 @@ git commit -m "feat(app): add iOS and macOS app shell with invite acceptance"
 | 4 | B: tap the link | App opens; Employee screen shows "You're on the team" with the business name |
 | 5 | A: relaunch or wait for sync | B appears in the Team list with a color dot |
 | 6 | B: sign out of iCloud, launch app | "Sign in to iCloud" screen |
-| 7 | Repeat 1–2 on Mac signed in as A | Mac shows the same Team list |
+| 7 | Launch on a Mac signed in as A and wait for sync | Mac shows the Team screen with the same list (no setup screen) |
 | 8 | B: on the Employee screen, check the share permission (Settings → Apple Account → iCloud → shared items, or the share sheet's participant list on A) | B is listed as "Can view" (read-only) |
 | 9 | A: after B appears, in a debug build log `fetchShares(matching: [employee.objectID])` for B's Employee record | Returns the Business share (employees added after sharing land in the shared zone) |
 | 10 | A: tap Invite Employees twice quickly | One sheet; CloudKit Console shows a single `cloudkit.share` record |

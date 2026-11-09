@@ -41,8 +41,8 @@ Out of scope for v1: overtime and labor-cost tracking, multiple locations, multi
 | Module | Responsibility | Depends on |
 |---|---|---|
 | `Domain` | Plain Swift value types and rules: hour totals, breaks, pay periods, conflict detection, swap rules, CSV generation. | Foundation only |
-| `Persistence` | Core Data model, CloudKit container setup, repository protocols the features use. | `Domain` |
-| `Sharing` | Create the Business zone, create/accept invites, discover employee zones, determine the current user's role. | `Persistence` |
+| `Persistence` | Core Data model, CloudKit container setup, repository protocols the features use. Determines the current user's role: `BusinessRepository.membership()` checks which store the Business lives in. | `Domain` |
+| `Sharing` | Create the Business zone, create/accept invites, discover employee zones. | `Persistence` |
 | `Features` | SwiftUI screens and view models for each tab. | `Domain`, `Persistence`, `Sharing` |
 | `Brand` | Colors, fonts, pattern assets, reusable framed-panel and card components. | SwiftUI |
 
