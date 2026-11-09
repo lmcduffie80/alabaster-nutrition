@@ -1,6 +1,6 @@
 import Foundation
 
-public enum BusinessDraftError: Error, Hashable, Sendable {
+public enum BusinessDraftError: Error, Hashable, Sendable, CaseIterable {
     case emptyName
     case emptyOwnerName
     case unknownTimeZone

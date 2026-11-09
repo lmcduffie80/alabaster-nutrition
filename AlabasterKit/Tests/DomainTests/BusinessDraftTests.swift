@@ -56,12 +56,22 @@ struct BusinessDraftTests {
         #expect(draft.validationErrors() == [.missingClockOutOutOfRange])
     }
 
+    @Test(arguments: [50.0, 1_000.0])
+    func radiusAtRangeLimitsIsAccepted(radius: Double) {
+        var draft = validDraft()
+        draft.allowedRadiusMeters = radius
+        #expect(draft.validationErrors().isEmpty)
+    }
+
+    @Test(arguments: [4.0, 24.0])
+    func missingClockOutAtRangeLimitsIsAccepted(hours: Double) {
+        var draft = validDraft()
+        draft.missingClockOutHours = hours
+        #expect(draft.validationErrors().isEmpty)
+    }
+
     @Test func everyErrorHasAMessage() {
-        let errors: [BusinessDraftError] = [
-            .emptyName, .emptyOwnerName, .unknownTimeZone,
-            .invalidWorkplace, .radiusOutOfRange, .missingClockOutOutOfRange,
-        ]
-        for error in errors {
+        for error in BusinessDraftError.allCases {
             #expect(!error.message.isEmpty)
         }
     }
