@@ -6,6 +6,7 @@ import SwiftUI
 
 public struct RootView: View {
     private let model: AppModel
+    @ViewState private var isCreatingBusiness = false
 
     public init(model: AppModel) {
         self.model = model
@@ -13,11 +14,16 @@ public struct RootView: View {
 
     public var body: some View {
         content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(BrandPalette.alabaster.color)
             .tint(BrandPalette.porcelain.color)
+            .sheet(isPresented: $isCreatingBusiness) {
+                CreateBusinessView(model: model)
+            }
             .task { await model.refresh() }
             .onReceive(
                 NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange)
-                    .receive(on: DispatchQueue.main)
+                    .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
             ) { _ in
                 Task { await model.refresh() }
             }
@@ -27,7 +33,7 @@ public struct RootView: View {
     private var content: some View {
         switch model.loadState {
         case .loading:
-            ProgressView()
+            ProgressView("Loading…")
         case .iCloudUnavailable:
             unavailable(
                 title: "Sign in to iCloud",
@@ -49,11 +55,11 @@ public struct RootView: View {
                 }
             } actions: {
                 Button("Try Again") { Task { await model.retry() } }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.brandProminent)
             }
         case .loaded:
             switch model.role {
-            case .needsSetup: WelcomeView(model: model)
+            case .needsSetup: WelcomeView { isCreatingBusiness = true }
             case .manager: ManagerHomeView(model: model)
             case .employee: EmployeeHomeView(model: model)
             }
@@ -70,7 +76,7 @@ public struct RootView: View {
             Text(message)
         } actions: {
             Button("Try Again") { Task { await action() } }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.brandProminent)
         }
     }
 }

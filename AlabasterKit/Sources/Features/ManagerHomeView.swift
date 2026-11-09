@@ -16,6 +16,7 @@ struct ManagerHomeView: View {
                             Text(businessName)
                                 .font(BrandFonts.heading(size: 28, relativeTo: .title))
                                 .foregroundStyle(BrandPalette.porcelain.color)
+                                .accessibilityAddTraits(.isHeader)
                             Text("Manager")
                                 .font(.subheadline)
                                 .foregroundStyle(BrandPalette.ink.color)
@@ -30,12 +31,14 @@ struct ManagerHomeView: View {
                             Circle()
                                 .fill(BrandPalette.employeeColor(at: employee.colorIndex).color)
                                 .frame(width: 12, height: 12)
+                                .accessibilityHidden(true)
                             Text(employee.displayName)
                             Spacer()
                             if employee.role == .manager {
                                 Text("Manager").font(.caption).foregroundStyle(.secondary)
                             }
                         }
+                        .accessibilityElement(children: .combine)
                     }
                     if let item = model.shareItem() {
                         ShareLink(item: item, preview: SharePreview("Join \(businessName)")) {

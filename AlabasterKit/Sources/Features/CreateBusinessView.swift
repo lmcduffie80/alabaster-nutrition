@@ -1,3 +1,4 @@
+import Brand
 import Domain
 import SwiftUI
 
@@ -12,9 +13,20 @@ struct CreateBusinessView: View {
     var body: some View {
         NavigationStack {
             Form {
+                #if os(macOS)
+                Section {
+                    Text("Set Up Your Business")
+                        .font(BrandFonts.heading(size: 26, relativeTo: .title2))
+                        .foregroundStyle(BrandPalette.ink.color)
+                        .accessibilityAddTraits(.isHeader)
+                }
+                #endif
                 Section("Business") {
                     TextField("Business name", text: $draft.name)
                     TextField("Your name", text: $draft.ownerName)
+                        #if os(iOS)
+                        .textContentType(.name)
+                        #endif
                 }
                 Section("Pay period") {
                     Picker("Frequency", selection: $draft.payPeriodRule) {
@@ -48,20 +60,35 @@ struct CreateBusinessView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") { Task { await save() } }
-                        .disabled(isSaving)
+                    if isSaving {
+                        ProgressView()
+                            .accessibilityLabel("Creating business")
+                    } else {
+                        Button("Create", action: startSave)
+                    }
                 }
             }
         }
+        .interactiveDismissDisabled(isSaving)
+        #if os(macOS)
+        .frame(minWidth: 460, minHeight: 480)
+        #endif
     }
 
-    private func save() async {
+    /// Flips `isSaving` before any suspension point, so a second tap cannot start another save.
+    private func startSave() {
+        guard !isSaving else { return }
         errors = draft.validationErrors()
         saveError = nil
         guard errors.isEmpty else { return }
         isSaving = true
+        Task { await save() }
+    }
+
+    private func save() async {
         defer { isSaving = false }
         do {
             try await model.createBusiness(draft)
