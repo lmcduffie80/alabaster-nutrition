@@ -2,11 +2,11 @@
   "name": "alabaster-nutrition",
   "private": true,
   "scripts": {
-    "dev": "pnpm --dir prototype dev",
-    "build": "pnpm --dir prototype build",
-    "test": "pnpm --dir prototype test",
-    "lint": "pnpm --dir prototype lint",
-    "typecheck": "pnpm --dir prototype typecheck"
+    "dev": "pnpm --dir web dev",
+    "build": "pnpm --dir web build",
+    "test": "pnpm --dir web test",
+    "lint": "pnpm --dir web lint",
+    "typecheck": "pnpm --dir web typecheck"
   },
   "packageManager": "pnpm@10.33.0"
 }
