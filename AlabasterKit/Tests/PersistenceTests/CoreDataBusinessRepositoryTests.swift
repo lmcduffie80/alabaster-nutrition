@@ -139,4 +139,57 @@ struct CoreDataBusinessRepositoryTests {
         let employees = try await repository.employees()
         #expect(employees.map(\.displayName) == ["Owner"])
     }
+
+    @Test func theOwnerCanAddEmployees() async throws {
+        let (repository, _) = try makeRepository()
+        _ = try await repository.createBusiness(from: draft())
+
+        try await repository.addEmployees([
+            NewEmployee(displayName: "Jordan Lee", participantRecordName: "_a", colorIndex: 1),
+        ])
+
+        let employees = try await repository.employees()
+        #expect(employees.map(\.displayName) == ["Owner", "Jordan Lee"])
+        #expect(employees.last?.role == .employee)
+        #expect(employees.last?.colorIndex == 1)
+        #expect(employees.last?.participantRecordName == "_a")
+    }
+
+    @Test func addingEmployeesWithoutABusinessFails() async throws {
+        let (repository, _) = try makeRepository()
+        await #expect(throws: BusinessRepositoryError.noBusiness) {
+            try await repository.addEmployees([
+                NewEmployee(displayName: "Jordan Lee", participantRecordName: "_a", colorIndex: 1),
+            ])
+        }
+    }
+
+    @Test func membersCannotAddEmployees() async throws {
+        let (repository, controller) = try makeRepository()
+        let context = controller.newBackgroundContext()
+        try await context.perform {
+            let object = NSEntityDescription.insertNewObject(forEntityName: EntityName.business, into: context)
+            context.assign(object, to: controller.sharedStore)
+            object.setValue(UUID(), forKey: "id")
+            object.setValue(Date(), forKey: "createdAt")
+            try context.save()
+        }
+
+        await #expect(throws: BusinessRepositoryError.notOwner) {
+            try await repository.addEmployees([
+                NewEmployee(displayName: "Jordan Lee", participantRecordName: "_a", colorIndex: 1),
+            ])
+        }
+    }
+
+    @Test func addedEmployeeNamesAreTrimmed() async throws {
+        let (repository, _) = try makeRepository()
+        _ = try await repository.createBusiness(from: draft())
+
+        try await repository.addEmployees([
+            NewEmployee(displayName: "  Jordan Lee\n", participantRecordName: "_a", colorIndex: 1),
+        ])
+
+        #expect(try await repository.employees().last?.displayName == "Jordan Lee")
+    }
 }

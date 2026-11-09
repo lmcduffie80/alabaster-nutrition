@@ -74,6 +74,30 @@ public final class CoreDataBusinessRepository: BusinessRepository, @unchecked Se
     }
 
     public func addEmployees(_ newEmployees: [NewEmployee]) async throws {
-        throw BusinessRepositoryError.noBusiness
+        let controller = controller
+        let context = controller.newBackgroundContext()
+        let now = now
+        try await context.perform {
+            guard let business = try context.fetchBusinessObject() else {
+                throw BusinessRepositoryError.noBusiness
+            }
+            let privateStore = controller.privateStore
+            guard business.objectID.persistentStore === privateStore else {
+                throw BusinessRepositoryError.notOwner
+            }
+            for newEmployee in newEmployees {
+                let employee = NSEntityDescription.insertNewObject(forEntityName: EntityName.employee, into: context)
+                context.assign(employee, to: privateStore)
+                employee.setValue(UUID(), forKey: "id")
+                employee.setValue(newEmployee.displayName.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "displayName")
+                employee.setValue(EmployeeRole.employee.rawValue, forKey: "role")
+                employee.setValue(newEmployee.colorIndex, forKey: "colorIndex")
+                employee.setValue(true, forKey: "isActive")
+                employee.setValue(newEmployee.participantRecordName, forKey: "participantRecordName")
+                employee.setValue(now(), forKey: "createdAt")
+                employee.setValue(business, forKey: "business")
+            }
+            try context.save()
+        }
     }
 }
