@@ -107,7 +107,7 @@ Source: the Alabaster Nutrition Facebook page (screenshots in `docs/branding/`).
 | Gilt accent | `#9C7A3C` | Thin frame borders, small highlights only |
 
 - Dark mode: deep navy background with softened porcelain blue.
-- Typography: an openly licensed script font for the "Alabaster" wordmark and an openly licensed serif for large headings, as look-alikes of the shop's sign. All other text uses SF Pro with Dynamic Type.
+- Typography: Great Vibes (script) for the "Alabaster" wordmark and Cormorant Garamond (serif) for large headings, both SIL Open Font License look-alikes of the shop's sign. All other text uses SF Pro with Dynamic Type.
 - Motifs: blue-and-white ginger-jar pattern on the app icon, launch screen, kiosk keypad screen, sign-in and empty states only. The sage framed panel with notched corners and a thin dark/gilt border is used for highlight cards ("Your next shift", the clock-in confirmation).
 - Employee schedule colors drawn from blue, sage, and complementary porcelain tones.
 - App icon: simplified porcelain-patterned cup on white.

@@ -39,7 +39,7 @@ AlabasterKit/
       NotchedRectangle.swift      notched-corner panel shape
       FramedPanel.swift           sage panel with dark + gilt frame
       AlabasterWordmark.swift     script/serif wordmark view
-      Resources/Fonts/            Allura, Cormorant Garamond, OFL licenses
+      Resources/Fonts/            Great Vibes, Cormorant Garamond, OFL licenses
     Persistence/
       AlabasterModel.swift        programmatic Core Data model
       PersistenceController.swift private + shared stores
@@ -823,7 +823,7 @@ git commit -m "feat(brand): add Alabaster palette with light and dark variants"
 
 ### Task 6: Brand fonts
 
-Look-alike, openly licensed (SIL OFL) fonts: **Allura** for the script "Alabaster" wordmark, **Cormorant Garamond** for serif headings.
+Look-alike, openly licensed (SIL OFL) fonts: **Great Vibes** for the script "Alabaster" wordmark, **Cormorant Garamond** for serif headings. These match the web prototype in `prototype/`.
 
 **Files:**
 - Modify: `AlabasterKit/Package.swift`
@@ -835,8 +835,8 @@ Look-alike, openly licensed (SIL OFL) fonts: **Allura** for the script "Alabaste
 
 ```bash
 cd AlabasterKit/Sources/Brand && mkdir -p Resources/Fonts && cd Resources/Fonts
-curl -fL -o Allura-Regular.ttf https://raw.githubusercontent.com/google/fonts/main/ofl/allura/Allura-Regular.ttf
-curl -fL -o Allura-OFL.txt https://raw.githubusercontent.com/google/fonts/main/ofl/allura/OFL.txt
+curl -fL -o GreatVibes-Regular.ttf https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf
+curl -fL -o GreatVibes-OFL.txt https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/OFL.txt
 curl -fL -o CormorantGaramond-Variable.ttf "https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantgaramond/CormorantGaramond%5Bwght%5D.ttf"
 curl -fL -o CormorantGaramond-OFL.txt https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantgaramond/OFL.txt
 file *.ttf
@@ -889,7 +889,7 @@ import Foundation
 import SwiftUI
 
 public enum BrandFonts {
-    static let scriptFile = "Allura-Regular"
+    static let scriptFile = "GreatVibes-Regular"
     static let serifFile = "CormorantGaramond-Variable"
 
     /// File name → PostScript name, read from the font files so names never need to be guessed.
