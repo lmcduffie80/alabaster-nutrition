@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { buildShifts, isMissingClockOut } from "@/lib/domain/punches";
 import { addDays, formatDay, formatMinutes, formatTime, localDateOf, startOfLocalDay } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
+import { inventorySummary } from "@/lib/server/inventory";
 import { listKiosks } from "@/lib/server/kiosk";
 import { currentShiftPunches } from "@/lib/server/punches";
 import { shiftsStartingBetween } from "@/lib/server/schedule";
@@ -30,6 +31,7 @@ export default async function TodayPage() {
   const missing = working.filter((s) => isMissingClockOut(s.open!, now, business.missingClockOutHours));
 
   const todaysShifts = await shiftsStartingBetween(db, startOfLocalDay(today, timeZone), startOfLocalDay(addDays(today, 1), timeZone));
+  const inventory = await inventorySummary(db, now);
   const nameOf = new Map(employees.map((e) => [e.id, e]));
 
   const setup = [
@@ -70,6 +72,28 @@ export default async function TodayPage() {
               </Link>
             </p>
           ))}
+        </Card>
+      )}
+
+      {inventory.itemCount > 0 && (inventory.lowCount > 0 || inventory.countDue || inventory.openCount) && (
+        <Card className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          <span className="font-semibold">Inventory</span>
+          {inventory.lowCount > 0 && (
+            <Link href="/manage/inventory/reorder" className="text-porcelain hover:underline">
+              {inventory.lowCount} {inventory.lowCount === 1 ? "item" : "items"} running low
+            </Link>
+          )}
+          {inventory.openCount ? (
+            <Link href={`/manage/inventory/counts/${inventory.openCount.id}`} className="text-porcelain hover:underline">
+              Count in progress · {inventory.openCount.counted} of {inventory.openCount.total}
+            </Link>
+          ) : (
+            inventory.countDue && (
+              <Link href="/manage/inventory/counts" className="text-porcelain hover:underline">
+                Count due
+              </Link>
+            )
+          )}
         </Card>
       )}
 

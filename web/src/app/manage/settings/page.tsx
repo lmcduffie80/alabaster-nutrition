@@ -108,6 +108,15 @@ export default async function SettingsPage() {
           <Field label="Kiosk returns to keypad after (seconds)" hint="How long an employee's screen stays up.">
             <input name="kioskAutoReturnSeconds" type="number" min={5} max={60} defaultValue={business.kioskAutoReturnSeconds} className={inputClass} />
           </Field>
+          <Field label="Inventory count day" hint="The iPad shows “Count due” from the start of this day until a count is finished.">
+            <select name="countWeekday" defaultValue={business.countWeekday} className={inputClass}>
+              {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day, index) => (
+                <option key={day} value={index}>
+                  {day}
+                </option>
+              ))}
+            </select>
+          </Field>
           <p className="text-xs text-ink/50 sm:col-span-2">
             Pay periods are weekly, Monday to Sunday, in {business.timeZone.replace("_", " ")} time.
           </p>

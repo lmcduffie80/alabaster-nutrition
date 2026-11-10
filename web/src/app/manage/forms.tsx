@@ -80,9 +80,9 @@ export function SubmitButton({
   );
 }
 
-export function NavLink({ href, children }: { href: string; children: ReactNode }) {
+export function NavLink({ href, children, exact = false }: { href: string; children: ReactNode; exact?: boolean }) {
   const pathname = usePathname();
-  const active = href === "/manage" ? pathname === href : pathname.startsWith(href);
+  const active = exact || href === "/manage" ? pathname === href : pathname.startsWith(href);
   return (
     <Link
       href={href}

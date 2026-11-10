@@ -1,8 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { z } from "zod";
 import { getDb } from "@/db";
 import { punchKinds, type PunchKind } from "@/lib/domain/punches";
 import { instantAt, isLocalDate } from "@/lib/domain/time";
@@ -11,13 +9,7 @@ import { UserError } from "@/lib/server/errors";
 import { enrollKiosk, revokeKiosk } from "@/lib/server/kiosk";
 import { addManagerPunch, editPunchTime, getPunch, removePunch } from "@/lib/server/punches";
 import { addShift, deleteShift, publishWeek, unpublishWeek } from "@/lib/server/schedule";
-import {
-  endKioskManagerSession,
-  requireManager,
-  requireManagerAccount,
-  setKioskCookie,
-  type Manager,
-} from "@/lib/server/session";
+import { endKioskManagerSession, requireManagerAccount, setKioskCookie } from "@/lib/server/session";
 import {
   addEmployee,
   assignRandomPin,
@@ -29,15 +21,9 @@ import {
   updateEmployee,
 } from "@/lib/server/team";
 import { approveTimesheet, reopenTimesheetAt, unapproveTimesheet } from "@/lib/server/timesheets";
+import { managerForm, text, type FormState } from "./manager-form";
 
-export type FormState = { error?: string; success?: string; pin?: string; at?: number } | null;
-
-const uuid = z.uuid();
-
-function text(form: FormData, name: string) {
-  const value = form.get(name);
-  return typeof value === "string" ? value : "";
-}
+export type { FormState };
 
 function timeToMinutes(value: string) {
   const match = /^(\d{2}):(\d{2})$/.exec(value);
@@ -49,30 +35,6 @@ function localInstant(form: FormData, timeZone: string) {
   const date = text(form, "date");
   if (!isLocalDate(date)) throw new UserError("Enter a date.");
   return instantAt(date, timeToMinutes(text(form, "time")), timeZone);
-}
-
-/** Runs a manager-only change; known problems come back as a message instead of an error page. */
-async function managerForm(
-  form: FormData,
-  work: (manager: Manager, db: Awaited<ReturnType<typeof getDb>>) => Promise<FormState | void>,
-  options: { account?: boolean; paths?: string[] } = {},
-): Promise<FormState> {
-  const manager = options.account ? await requireManagerAccount() : await requireManager();
-  const db = await getDb();
-  try {
-    for (const name of ["id", "employeeId", "punchId"]) {
-      const value = form.get(name);
-      if (value !== null && value !== undefined && !uuid.safeParse(value).success) {
-        throw new UserError("That item no longer exists. Refresh the page.");
-      }
-    }
-    const result = await work(manager, db);
-    for (const path of options.paths ?? ["/manage"]) revalidatePath(path, "layout");
-    return { ...(result ?? {}), at: Date.now() };
-  } catch (error) {
-    if (error instanceof UserError) return { error: error.message, at: Date.now() };
-    throw error;
-  }
 }
 
 // Team
@@ -139,7 +101,9 @@ export async function updateSettingsAction(_: FormState, form: FormData) {
     if (!Number.isInteger(autoReturn) || autoReturn < 5 || autoReturn > 60) {
       throw new UserError("The kiosk must return to the keypad within 5 to 60 seconds.");
     }
-    await updateBusinessSettings(db, { name, missingClockOutHours: missing, kioskAutoReturnSeconds: autoReturn });
+    const countWeekday = Number(text(form, "countWeekday"));
+    if (!Number.isInteger(countWeekday) || countWeekday < 0 || countWeekday > 6) throw new UserError("Choose the count day.");
+    await updateBusinessSettings(db, { name, missingClockOutHours: missing, kioskAutoReturnSeconds: autoReturn, countWeekday });
     return { success: "Settings saved." };
   });
 }

@@ -1,5 +1,5 @@
 import { UserButton } from "@clerk/nextjs";
-import { CalendarDays, FileSpreadsheet, Settings, Sun, Users } from "lucide-react";
+import { CalendarDays, FileSpreadsheet, Package, Settings, Sun, Users } from "lucide-react";
 import type { Metadata } from "next";
 import { Wordmark } from "@/components/ui";
 import { requireManager } from "@/lib/server/session";
@@ -11,6 +11,7 @@ const links = [
   { href: "/manage", label: "Today", icon: Sun },
   { href: "/manage/schedule", label: "Schedule", icon: CalendarDays },
   { href: "/manage/timesheets", label: "Timesheets", icon: FileSpreadsheet },
+  { href: "/manage/inventory", label: "Inventory", icon: Package },
   { href: "/manage/team", label: "Team", icon: Users },
   { href: "/manage/settings", label: "Settings", icon: Settings },
 ];

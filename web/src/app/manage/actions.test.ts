@@ -180,3 +180,24 @@ describe("inventory count on the kiosk", () => {
     expect((await inventory.getCount(state.db, countId))?.lines[0].quantity).toBeNull();
   });
 });
+
+describe("inventory manager actions", () => {
+  it("refuse employees and anyone signed out, and work for the manager", async () => {
+    const { addSpotAction, addItemAction, cancelCountAction } = await import("./inventory-actions");
+    await expect(addSpotAction(null, form({ name: "Back room" }))).rejects.toThrow("REDIRECT /");
+
+    state.user = { email: "owner@example.com" };
+    await addEmployeeAction(null, form({ displayName: "Ava", email: "ava@example.com" }));
+    expect(await addSpotAction(null, form({ name: "Back room" }))).toMatchObject({ success: expect.any(String) });
+    const [spot] = await inventory.listSpots(state.db);
+    const item = { name: "Cups", type: "supply", unit: "sleeve", spotId: spot.id, supplierId: "", supplierCode: "", packSize: "", reorderAt: "1", orderUpTo: "4", defaultUnitCost: "" };
+    expect((await addItemAction(null, form(item)))?.error).toBeUndefined();
+
+    state.user = { email: "ava@example.com" };
+    await expect(addSpotAction(null, form({ name: "Fridge" }))).rejects.toThrow("REDIRECT /");
+    await expect(addItemAction(null, form({ ...item, name: "Lids" }))).rejects.toThrow("REDIRECT /");
+    await expect(cancelCountAction(null, form({ countId: spot.id }))).rejects.toThrow("REDIRECT /");
+    expect((await inventory.listSpots(state.db)).map((s) => s.name)).toEqual(["Back room"]);
+    expect((await inventory.listItems(state.db)).map((i) => i.name)).toEqual(["Cups"]);
+  });
+});
