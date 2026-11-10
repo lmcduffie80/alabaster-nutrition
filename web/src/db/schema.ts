@@ -1,5 +1,18 @@
 import { sql } from "drizzle-orm";
-import { boolean, date, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  date,
+  index,
+  integer,
+  numeric,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
@@ -18,6 +31,8 @@ export const business = pgTable("business", {
   missingClockOutHours: integer("missing_clock_out_hours").notNull().default(12),
   kioskAutoReturnSeconds: integer("kiosk_auto_return_seconds").notNull().default(10),
   managerPinDigest: text("manager_pin_digest"),
+  /** 0 = Sunday … 6 = Saturday. The weekly inventory count is due from the start of this day. */
+  countWeekday: integer("count_weekday").notNull().default(0),
   createdAt: createdAt(),
 });
 
@@ -121,4 +136,99 @@ export const timesheetApproval = pgTable(
     approvedAt: timestamp("approved_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("timesheet_approval_unique").on(t.employeeId, t.periodStart)],
+);
+
+// Inventory
+
+const quantity = (name: string) => numeric(name, { precision: 10, scale: 2, mode: "number" });
+
+export const inventoryItemType = pgEnum("inventory_item_type", ["ingredient", "supply"]);
+export const inventoryCountStatus = pgEnum("inventory_count_status", ["open", "finished", "cancelled"]);
+
+/** A place in the store; the count walks spots in `sortOrder`. */
+export const storageSpot = pgTable(
+  "storage_spot",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    sortOrder: integer("sort_order").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("storage_spot_name_unique").on(sql`lower(${t.name})`)],
+);
+
+export const supplier = pgTable(
+  "supplier",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    contact: text("contact").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("supplier_name_unique").on(sql`lower(${t.name})`)],
+);
+
+export const inventoryItem = pgTable(
+  "inventory_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    type: inventoryItemType("type").notNull(),
+    /** Singular, e.g. "tub" or "sleeve of 50 cups". */
+    unit: text("unit").notNull(),
+    spotId: uuid("spot_id")
+      .notNull()
+      .references(() => storageSpot.id),
+    supplierId: uuid("supplier_id").references(() => supplier.id),
+    supplierCode: text("supplier_code"),
+    /** Count units in one invoice unit (1 case = 20 sleeves). */
+    packSize: quantity("pack_size").notNull().default(1),
+    reorderAt: quantity("reorder_at").notNull(),
+    orderUpTo: quantity("order_up_to").notNull(),
+    defaultUnitCost: quantity("default_unit_cost"),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("inventory_item_name_unique").on(sql`lower(${t.name})`),
+    uniqueIndex("inventory_item_supplier_code_unique").on(t.supplierId, t.supplierCode),
+  ],
+);
+
+export const inventoryCount = pgTable(
+  "inventory_count",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    status: inventoryCountStatus("status").notNull().default("open"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    startedBy: uuid("started_by")
+      .notNull()
+      .references(() => employee.id),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    finishedBy: uuid("finished_by").references(() => employee.id),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("inventory_count_one_open").on(t.status).where(sql`${t.status} = 'open'`),
+    index("inventory_count_finished").on(t.finishedAt),
+  ],
+);
+
+/** One per item that was active when the count started. `quantity` null = not counted (skipped if finished). */
+export const inventoryCountLine = pgTable(
+  "inventory_count_line",
+  {
+    countId: uuid("count_id")
+      .notNull()
+      .references(() => inventoryCount.id),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => inventoryItem.id),
+    quantity: quantity("quantity"),
+    enteredBy: uuid("entered_by").references(() => employee.id),
+    enteredAt: timestamp("entered_at", { withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.countId, t.itemId] }), index("inventory_count_line_item").on(t.itemId)],
 );
