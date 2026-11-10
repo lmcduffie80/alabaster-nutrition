@@ -500,6 +500,38 @@ async function businessToday(db: Db, now: Date) {
   return localDateOf(now, (await getBusiness(db)).timeZone);
 }
 
+/**
+ * An invoice code on a line the manager matched by hand is remembered on the item, so the next scan
+ * matches it, unless the item already has a code or belongs to another supplier.
+ */
+type Executor = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+async function learnCodes(db: Executor, supplierId: string, lines: { itemId: string; invoiceCode: string | null }[]) {
+  const coded = lines.filter((l) => l.invoiceCode);
+  if (coded.length === 0) return;
+  const items = await db
+    .select({ id: inventoryItem.id, supplierId: inventoryItem.supplierId, supplierCode: inventoryItem.supplierCode })
+    .from(inventoryItem)
+    .where(eq(inventoryItem.supplierId, supplierId));
+  const taken = new Set(items.map((i) => i.supplierCode?.toLowerCase()).filter(Boolean));
+  for (const line of coded) {
+    const code = line.invoiceCode!;
+    if (taken.has(code.toLowerCase())) continue;
+    const updated = await db
+      .update(inventoryItem)
+      .set({ supplierId, supplierCode: code })
+      .where(
+        and(
+          eq(inventoryItem.id, line.itemId),
+          isNull(inventoryItem.supplierCode),
+          sql`(${inventoryItem.supplierId} is null or ${inventoryItem.supplierId} = ${supplierId})`,
+        ),
+      )
+      .returning({ id: inventoryItem.id });
+    if (updated.length) taken.add(code.toLowerCase());
+  }
+}
+
 export async function recordDelivery(db: Db, input: DeliveryInput, who: { actor: string; now: Date }) {
   const { header, lines } = await parseDelivery(db, input, await businessToday(db, who.now));
   return unique(
@@ -509,6 +541,7 @@ export async function recordDelivery(db: Db, input: DeliveryInput, who: { actor:
         .values({ ...header, recordedBy: who.actor, recordedAt: who.now })
         .returning({ id: delivery.id });
       await tx.insert(deliveryLine).values(lines.map((line) => ({ ...line, deliveryId: row.id })));
+      await learnCodes(tx, header.supplierId, lines);
       return row.id;
     }),
     duplicateInvoice,

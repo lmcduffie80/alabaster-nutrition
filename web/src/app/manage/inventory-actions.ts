@@ -21,6 +21,8 @@ import {
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { UserError } from "@/lib/server/errors";
+import { attachPhotos, MAX_SCAN_PAGES } from "@/lib/server/invoice-scan";
+import { keepPhotos } from "@/lib/server/photo-store";
 import { managerForm, text, type FormState } from "./manager-form";
 
 const paths = ["/manage", "/kiosk"];
@@ -153,12 +155,29 @@ export async function cancelCountAction(_: FormState, form: FormData) {
 
 // Deliveries
 
+function photoIds(form: FormData) {
+  try {
+    const parsed = z.array(z.uuid()).max(MAX_SCAN_PAGES).safeParse(JSON.parse(text(form, "photoIds") || "[]"));
+    return parsed.success ? parsed.data : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function recordDeliveryAction(_: FormState, form: FormData) {
   let id = "";
+  let photos: string[] = [];
   const result = await managerForm(form, async (manager, db) => {
-    id = await recordDelivery(db, deliveryInput(form), { actor: manager.actor, now: new Date() });
+    const now = new Date();
+    id = await recordDelivery(db, deliveryInput(form), { actor: manager.actor, now });
+    photos = await attachPhotos(db, id, photoIds(form), now);
   }, { paths });
   if (result?.error) return result;
+  try {
+    await keepPhotos(photos);
+  } catch (error) {
+    console.error("Couldn't keep invoice photos; they'll expire in a day", error);
+  }
   redirect(`/manage/inventory/deliveries/${id}`);
 }
 

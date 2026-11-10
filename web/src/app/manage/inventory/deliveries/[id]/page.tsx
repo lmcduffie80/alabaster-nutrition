@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { formatMoney, formatQuantity } from "@/lib/domain/inventory";
 import { formatDay } from "@/lib/domain/time";
 import { getDelivery } from "@/lib/server/inventory";
+import { deliveryPhotos } from "@/lib/server/invoice-scan";
 import { requireManager } from "@/lib/server/session";
 import { ActionForm, SubmitButton } from "../../../forms";
 import { deleteDeliveryAction, updateDeliveryAction } from "../../../inventory-actions";
@@ -19,7 +20,10 @@ export default async function DeliveryPage({ params }: PageProps<"/manage/invent
   const db = await getDb();
   const found = await getDelivery(db, id);
   if (!found) notFound();
-  const { items, suppliers } = await deliveryPickers(db, { supplierId: found.supplierId, itemIds: found.lines.map((l) => l.itemId) });
+  const [{ items, suppliers, spots }, photos] = await Promise.all([
+    deliveryPickers(db, { supplierId: found.supplierId, itemIds: found.lines.map((l) => l.itemId) }),
+    deliveryPhotos(db, found.id),
+  ]);
 
   return (
     <div>
@@ -73,6 +77,24 @@ export default async function DeliveryPage({ params }: PageProps<"/manage/invent
         </table>
       </Card>
 
+      {photos.length > 0 && (
+        <>
+          <SectionTitle>Invoice</SectionTitle>
+          <div className="flex flex-wrap gap-2">
+            {photos.map((photo) => (
+              <a key={photo.id} href={`/manage/inventory/photos/${photo.id}`} target="_blank" rel="noreferrer" className="block">
+                {/* eslint-disable-next-line @next/next/no-img-element -- private, served by our own route */}
+                <img
+                  src={`/manage/inventory/photos/${photo.id}`}
+                  alt={`Invoice page ${photo.page}`}
+                  className="h-40 w-auto rounded-lg border border-ink/10 object-cover"
+                />
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+
       <SectionTitle>Fix this delivery</SectionTitle>
       <Card className="p-0">
         <details>
@@ -82,6 +104,7 @@ export default async function DeliveryPage({ params }: PageProps<"/manage/invent
               action={updateDeliveryAction}
               items={items}
               suppliers={suppliers}
+              spots={spots}
               submitLabel="Save changes"
               initial={{
                 id: found.id,

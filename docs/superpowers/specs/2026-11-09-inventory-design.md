@@ -122,7 +122,7 @@ usage = previous count + deliveries between them − this count.
 - `inventory_count_line` (count_id, item_id, quantity null, entered_by null, entered_at null) — primary key (count_id, item_id)
 - `delivery` (id, supplier_id, invoice_number null, invoice_total null, received_on, on_shelf_for_count, recorded_by, recorded_at, deleted_at null)
 - `delivery_line` (id, delivery_id, item_id, quantity, line_total null, invoice_code null, invoice_description null)
-- `invoice_photo` (id, delivery_id null, blob_pathname, uploaded_by, uploaded_at, page) — rows with no delivery after 24 hours are deleted with their blobs by a daily cron job
+- `invoice_photo` (id, delivery_id null, blob_pathname, uploaded_by, uploaded_at, page) — blobs are uploaded with a one-day Blob TTL that is cleared when the delivery is saved, so abandoned scans delete themselves (no cron); their rows are removed on the next scan
 - `invoice_scan` (id, actor_id, at, ok) — for the daily scan limit
 - `inventory_audit` (id, entity, entity_id, action, before json, after json, reason, actor_id, at)
 - `business.count_weekday` (smallint, default 0 = Sunday)

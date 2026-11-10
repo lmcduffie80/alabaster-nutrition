@@ -281,6 +281,31 @@ export const deliveryLine = pgTable(
   (t) => [index("delivery_line_delivery").on(t.deliveryId), index("delivery_line_item").on(t.itemId)],
 );
 
+/**
+ * A scanned invoice page in the private Blob store. Uploaded with a one-day expiry, which is cleared when
+ * its delivery is saved; rows still without a delivery after a day point at deleted blobs and are removed.
+ */
+export const invoicePhoto = pgTable(
+  "invoice_photo",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    deliveryId: uuid("delivery_id").references(() => delivery.id),
+    pathname: text("pathname").notNull(),
+    page: integer("page").notNull(),
+    uploadedBy: text("uploaded_by").notNull(),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("invoice_photo_delivery").on(t.deliveryId)],
+);
+
+/** One per scan attempt, for the daily limit. */
+export const invoiceScan = pgTable("invoice_scan", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  actor: text("actor").notNull(),
+  at: timestamp("at", { withTimezone: true }).notNull(),
+  ok: boolean("ok").notNull(),
+});
+
 export const inventoryAudit = pgTable(
   "inventory_audit",
   {

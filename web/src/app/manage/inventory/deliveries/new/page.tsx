@@ -4,14 +4,13 @@ import { getDb } from "@/db";
 import { localDateOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
 import { requireManager } from "@/lib/server/session";
-import { recordDeliveryAction } from "../../../inventory-actions";
-import { DeliveryForm } from "../delivery-form";
 import { deliveryPickers } from "../pickers";
+import { RecordDelivery } from "./record-delivery";
 
 export default async function NewDeliveryPage() {
   await requireManager();
   const db = await getDb();
-  const [{ items, suppliers }, { timeZone }] = await Promise.all([deliveryPickers(db), getBusiness(db)]);
+  const [{ items, suppliers, spots }, { timeZone }] = await Promise.all([deliveryPickers(db), getBusiness(db)]);
 
   return (
     <div>
@@ -19,37 +18,30 @@ export default async function NewDeliveryPage() {
         ← Deliveries
       </Link>
       <h2 className="mb-3 mt-2 font-serif text-2xl font-semibold">Record delivery</h2>
-      {items.length === 0 || suppliers.length === 0 ? (
+      {spots.length === 0 ? (
         <Card>
           <p className="text-sm">
-            Add your{" "}
-            <Link href="/manage/inventory/suppliers" className="font-semibold text-porcelain hover:underline">
-              suppliers
-            </Link>{" "}
-            and{" "}
+            Set up{" "}
             <Link href="/manage/inventory/items" className="font-semibold text-porcelain hover:underline">
-              items
+              storage spots and items
             </Link>{" "}
             first.
           </p>
         </Card>
       ) : (
-        <Card>
-          <DeliveryForm
-            action={recordDeliveryAction}
-            items={items}
-            suppliers={suppliers}
-            submitLabel="Save delivery"
-            initial={{
-              supplierId: "",
-              invoiceNumber: "",
-              invoiceTotal: "",
-              receivedOn: localDateOf(new Date(), timeZone),
-              onShelfForCount: false,
-              lines: [],
-            }}
-          />
-        </Card>
+        <RecordDelivery
+          items={items}
+          suppliers={suppliers}
+          spots={spots}
+          blank={{
+            supplierId: "",
+            invoiceNumber: "",
+            invoiceTotal: "",
+            receivedOn: localDateOf(new Date(), timeZone),
+            onShelfForCount: false,
+            lines: [],
+          }}
+        />
       )}
     </div>
   );

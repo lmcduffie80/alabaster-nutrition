@@ -8,6 +8,10 @@ const state = vi.hoisted(() => ({
   db: null as unknown as Db,
   user: null as null | { email: string; verified?: boolean },
   cookies: new Map<string, string>(),
+  read: (async () => {
+    throw new Error("no reading set");
+  }) as (pages: Uint8Array[]) => Promise<unknown>,
+  kept: [] as string[],
 }));
 
 vi.mock("@/db", async (original) => ({ ...(await original<typeof import("@/db")>()), getDb: async () => state.db }));
@@ -29,6 +33,12 @@ vi.mock("next/headers", () => ({
   }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("@/lib/server/invoice-reader", () => ({ readInvoice: (pages: Uint8Array[]) => state.read(pages) }));
+vi.mock("@/lib/server/photo-store", () => ({
+  storePhoto: async () => `invoices/${crypto.randomUUID()}.jpg`,
+  keepPhotos: async (pathnames: string[]) => void state.kept.push(...pathnames),
+  readPhoto: async () => null,
+}));
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`REDIRECT ${to}`);
@@ -50,6 +60,7 @@ beforeEach(async () => {
   state.db = await openLocalDatabase();
   state.user = null;
   state.cookies.clear();
+  state.kept = [];
 });
 
 const employees = () => state.db.select().from(schema.employee);
@@ -218,5 +229,72 @@ describe("inventory manager actions", () => {
     state.user = { email: "ava@example.com" };
     await expect(recordDeliveryAction(null, form({ ...fields, invoiceNumber: "A2" }))).rejects.toThrow("REDIRECT /");
     expect((await inventory.listDeliveries(state.db)).map((d) => d.invoiceNumber)).toEqual(["A1"]);
+  });
+});
+
+describe("scanning invoices", () => {
+  const photo = (bytes = 10) => new File([new Uint8Array(bytes)], "page.jpg", { type: "image/jpeg" });
+  const photos = (...files: File[]) => {
+    const data = new FormData();
+    for (const file of files) data.append("photo", file);
+    return data;
+  };
+
+  async function setUp() {
+    state.user = { email: "owner@example.com" };
+    const spotId = await inventory.addSpot(state.db, "Back room");
+    const supplierId = await inventory.addSupplier(state.db, { name: "Sysco", contact: "", notes: "" });
+    const itemId = await inventory.addItem(state.db, {
+      name: "Cups", type: "supply", unit: "sleeve", spotId, supplierId, supplierCode: "45", packSize: "20", reorderAt: "1", orderUpTo: "4", defaultUnitCost: "",
+    });
+    return { supplierId, itemId };
+  }
+
+  it("fill in the delivery from the photos, and keep the photos when it's saved", async () => {
+    const { scanInvoiceAction } = await import("./inventory/deliveries/scan-actions");
+    const { recordDeliveryAction } = await import("./inventory-actions");
+    const { supplierId, itemId } = await setUp();
+    state.read = async (pages) => {
+      expect(pages).toHaveLength(2);
+      return {
+        supplierName: "SYSCO", invoiceNumber: "9", invoiceDate: "2026-01-05", invoiceTotal: 80,
+        lines: [{ itemCode: "45", description: "CUP 16OZ", quantity: 2, invoiceUnit: "case", unitPrice: 40, lineTotal: 80 }],
+      };
+    };
+    const result = await scanInvoiceAction(photos(photo(), photo()));
+    if (result.kind !== "read") throw new Error(`expected read, got ${result.kind}`);
+    expect(result.prefill).toMatchObject({ supplierId, invoiceNumber: "9", lines: [{ itemId, quantity: "40", lineTotal: "80" }] });
+    expect(result.photoIds).toHaveLength(2);
+
+    const fields = { supplierId, receivedOn: "2026-01-05", invoiceNumber: "9", invoiceTotal: "80", lines: JSON.stringify(result.prefill.lines), photoIds: JSON.stringify(result.photoIds) };
+    await expect(recordDeliveryAction(null, form(fields))).rejects.toThrow(/REDIRECT \/manage\/inventory\/deliveries\//);
+    const [saved] = await inventory.listDeliveries(state.db);
+    expect(state.kept).toHaveLength(2);
+    const attached = await state.db.select().from(schema.invoicePhoto);
+    expect(attached.every((p) => p.deliveryId === saved.id)).toBe(true);
+  });
+
+  it("fall back to typing it in when the invoice can't be read, and stop after the daily limit", async () => {
+    const { scanInvoiceAction } = await import("./inventory/deliveries/scan-actions");
+    await setUp();
+    state.read = async () => {
+      throw new Error("model unavailable");
+    };
+    expect(await scanInvoiceAction(photos(photo()))).toMatchObject({ kind: "unreadable", photoIds: [expect.any(String)] });
+    expect(await scanInvoiceAction(photos())).toMatchObject({ kind: "error", message: /Choose a photo/ });
+    expect(await scanInvoiceAction(photos(new File(["x"], "a.png", { type: "image/png" })))).toMatchObject({ kind: "error" });
+    expect(await scanInvoiceAction(photos(...Array.from({ length: 6 }, () => photo())))).toMatchObject({ kind: "error", message: /up to 5/ });
+
+    await state.db.insert(schema.invoiceScan).values(Array.from({ length: 29 }, () => ({ actor: "owner", at: new Date(), ok: true })));
+    expect(await scanInvoiceAction(photos(photo()))).toMatchObject({ kind: "error", message: /30 scans/ });
+  });
+
+  it("are for managers only", async () => {
+    const { scanInvoiceAction, quickAddSupplierAction } = await import("./inventory/deliveries/scan-actions");
+    await expect(scanInvoiceAction(photos(photo()))).rejects.toThrow("REDIRECT /");
+    await expect(quickAddSupplierAction("US Foods")).rejects.toThrow("REDIRECT /");
+    state.user = { email: "owner@example.com" };
+    expect(await quickAddSupplierAction("US Foods")).toMatchObject({ ok: true, value: { name: "US Foods" } });
+    expect(await quickAddSupplierAction("us foods")).toMatchObject({ ok: false, error: /already/ });
   });
 });

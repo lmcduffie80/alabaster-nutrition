@@ -28,5 +28,5 @@ Ships in two parts; each goes to production on its own.
 4. Record delivery: **Scan invoice** (up to 5 photos, resized in the browser to 2000 px JPEG), pre-filled lines with
    Unmatched → existing item (saves the code) / new item / ignore. Photos attach to the saved delivery and are shown on it,
    served only to managers.
-5. Daily cron deletes unattached photos older than 24 hours. 30 scans per day.
+5. Photos upload with a one-day Blob TTL, cleared when the delivery is saved (no cron needed). 30 scans per day.
 6. Manual check with a real invoice photo, then ship.
