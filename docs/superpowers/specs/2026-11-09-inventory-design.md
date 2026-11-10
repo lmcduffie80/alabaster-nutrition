@@ -133,7 +133,7 @@ Money is stored as `numeric(10,2)` dollars. Business rules (on hand, due, usage,
 
 - Only one open count at a time (partial unique index on `status = 'open'`).
 - Count entries are rejected if the count isn't open, the item isn't on the count, the quantity is negative or has more than two decimals, or the count session isn't valid for this kiosk.
-- An item can't be deactivated while it is on an open count with a quantity entered; its line stays and it is excluded from future counts.
+- Deactivating an item removes it from the open count if it hasn't been counted yet; if it has, its line stays. Either way it is left off future counts.
 - Order-up-to must be greater than reorder-at; both are non-negative.
 - Delivery lines need a quantity greater than 0; line total is optional (no price yet) and non-negative.
 - All manager actions go through the existing `managerForm` wrapper (UUID validation, `UserError` messages, revalidation).
