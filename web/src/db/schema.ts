@@ -4,6 +4,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -231,4 +232,67 @@ export const inventoryCountLine = pgTable(
     enteredAt: timestamp("entered_at", { withTimezone: true }),
   },
   (t) => [primaryKey({ columns: [t.countId, t.itemId] }), index("inventory_count_line_item").on(t.itemId)],
+);
+
+const money = (name: string) => numeric(name, { precision: 10, scale: 2, mode: "number" });
+
+/** Soft-deleted (`deletedAt`) so the audit trail keeps what it was. */
+export const delivery = pgTable(
+  "delivery",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    supplierId: uuid("supplier_id")
+      .notNull()
+      .references(() => supplier.id),
+    invoiceNumber: text("invoice_number"),
+    invoiceTotal: money("invoice_total"),
+    /** Business-local date. */
+    receivedOn: date("received_on", { mode: "string" }).notNull(),
+    /** Received the same day as a count and already on the shelf when it was counted. */
+    onShelfForCount: boolean("on_shelf_for_count").notNull().default(false),
+    recordedBy: text("recorded_by").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("delivery_received_on").on(t.receivedOn),
+    uniqueIndex("delivery_invoice_unique")
+      .on(t.supplierId, sql`lower(${t.invoiceNumber})`)
+      .where(sql`${t.deletedAt} is null and ${t.invoiceNumber} is not null`),
+  ],
+);
+
+/** `quantity` is in the item's count unit. */
+export const deliveryLine = pgTable(
+  "delivery_line",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    deliveryId: uuid("delivery_id")
+      .notNull()
+      .references(() => delivery.id),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => inventoryItem.id),
+    quantity: quantity("quantity").notNull(),
+    lineTotal: money("line_total"),
+    invoiceCode: text("invoice_code"),
+    invoiceDescription: text("invoice_description"),
+  },
+  (t) => [index("delivery_line_delivery").on(t.deliveryId), index("delivery_line_item").on(t.itemId)],
+);
+
+export const inventoryAudit = pgTable(
+  "inventory_audit",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entity: text("entity").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    action: text("action").notNull(),
+    before: jsonb("before"),
+    after: jsonb("after"),
+    reason: text("reason").notNull(),
+    actor: text("actor").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("inventory_audit_entity").on(t.entity, t.entityId)],
 );

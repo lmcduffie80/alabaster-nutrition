@@ -12,11 +12,47 @@ import {
   setSupplierActive,
   updateItem,
   updateSupplier,
+  deleteDelivery,
+  recordDelivery,
+  updateDelivery,
+  type DeliveryInput,
   type ItemInput,
 } from "@/lib/server/inventory";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { UserError } from "@/lib/server/errors";
 import { managerForm, text, type FormState } from "./manager-form";
 
 const paths = ["/manage", "/kiosk"];
+
+const linesSchema = z
+  .array(
+    z.object({
+      itemId: z.string(),
+      quantity: z.string(),
+      lineTotal: z.string(),
+      invoiceCode: z.string().optional(),
+      invoiceDescription: z.string().optional(),
+    }),
+  )
+  .max(200);
+
+function deliveryInput(form: FormData): DeliveryInput {
+  let lines: DeliveryInput["lines"];
+  try {
+    lines = linesSchema.parse(JSON.parse(text(form, "lines") || "[]"));
+  } catch {
+    throw new UserError("Add at least one item.");
+  }
+  return {
+    supplierId: text(form, "supplierId"),
+    invoiceNumber: text(form, "invoiceNumber"),
+    invoiceTotal: text(form, "invoiceTotal"),
+    receivedOn: text(form, "receivedOn"),
+    onShelfForCount: text(form, "onShelfForCount") === "on",
+    lines,
+  };
+}
 
 function itemInput(form: FormData): ItemInput {
   return {
@@ -113,4 +149,30 @@ export async function cancelCountAction(_: FormState, form: FormData) {
     await cancelCount(db, text(form, "countId"), new Date());
     return { success: "Count cancelled. The next count starts fresh." };
   }, { paths });
+}
+
+// Deliveries
+
+export async function recordDeliveryAction(_: FormState, form: FormData) {
+  let id = "";
+  const result = await managerForm(form, async (manager, db) => {
+    id = await recordDelivery(db, deliveryInput(form), { actor: manager.actor, now: new Date() });
+  }, { paths });
+  if (result?.error) return result;
+  redirect(`/manage/inventory/deliveries/${id}`);
+}
+
+export async function updateDeliveryAction(_: FormState, form: FormData) {
+  return managerForm(form, async (manager, db) => {
+    await updateDelivery(db, text(form, "id"), deliveryInput(form), { actor: manager.actor, now: new Date(), reason: text(form, "reason") });
+    return { success: "Saved." };
+  }, { paths });
+}
+
+export async function deleteDeliveryAction(_: FormState, form: FormData) {
+  const result = await managerForm(form, async (manager, db) => {
+    await deleteDelivery(db, text(form, "id"), { actor: manager.actor, now: new Date(), reason: text(form, "reason") });
+  }, { paths });
+  if (result?.error) return result;
+  redirect("/manage/inventory/deliveries");
 }

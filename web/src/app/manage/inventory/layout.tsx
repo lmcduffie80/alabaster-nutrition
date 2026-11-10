@@ -3,6 +3,7 @@ import { NavLink } from "../forms";
 const tabs = [
   { href: "/manage/inventory", label: "Stock", exact: true },
   { href: "/manage/inventory/reorder", label: "Reorder list" },
+  { href: "/manage/inventory/deliveries", label: "Deliveries" },
   { href: "/manage/inventory/counts", label: "Counts" },
   { href: "/manage/inventory/items", label: "Items" },
   { href: "/manage/inventory/suppliers", label: "Suppliers" },

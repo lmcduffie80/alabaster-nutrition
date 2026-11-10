@@ -200,4 +200,23 @@ describe("inventory manager actions", () => {
     expect((await inventory.listSpots(state.db)).map((s) => s.name)).toEqual(["Back room"]);
     expect((await inventory.listItems(state.db)).map((i) => i.name)).toEqual(["Cups"]);
   });
+
+  it("record a delivery from the form and open it, but not for employees", async () => {
+    const { recordDeliveryAction } = await import("./inventory-actions");
+    state.user = { email: "owner@example.com" };
+    await addEmployeeAction(null, form({ displayName: "Ava", email: "ava@example.com" }));
+    const spotId = await inventory.addSpot(state.db, "Back room");
+    const supplierId = await inventory.addSupplier(state.db, { name: "Sysco", contact: "", notes: "" });
+    const itemId = await inventory.addItem(state.db, {
+      name: "Cups", type: "supply", unit: "sleeve", spotId, supplierId: "", supplierCode: "", packSize: "", reorderAt: "1", orderUpTo: "4", defaultUnitCost: "",
+    });
+    const fields = { supplierId, receivedOn: "2026-01-05", invoiceNumber: "A1", invoiceTotal: "", lines: JSON.stringify([{ itemId, quantity: "40", lineTotal: "62.00" }]) };
+
+    expect(await recordDeliveryAction(null, form({ ...fields, lines: "not json" }))).toMatchObject({ error: "Add at least one item." });
+    await expect(recordDeliveryAction(null, form(fields))).rejects.toThrow(/REDIRECT \/manage\/inventory\/deliveries\/[0-9a-f-]{36}/);
+
+    state.user = { email: "ava@example.com" };
+    await expect(recordDeliveryAction(null, form({ ...fields, invoiceNumber: "A2" }))).rejects.toThrow("REDIRECT /");
+    expect((await inventory.listDeliveries(state.db)).map((d) => d.invoiceNumber)).toEqual(["A1"]);
+  });
 });

@@ -1,4 +1,4 @@
-import { addDays, localDateOf, startOfLocalDay, weekday as weekdayOf } from "./time";
+import { addDays, localDateOf, startOfLocalDay, weekday as weekdayOf, type LocalDate } from "./time";
 
 export const itemTypes = ["ingredient", "supply"] as const;
 export type ItemType = (typeof itemTypes)[number];
@@ -36,6 +36,39 @@ export function reorderAmount(onHand: number | null, orderUpTo: number) {
 /** Last counted quantity plus what has been received since; `null` if never counted. */
 export function onHand(lastCounted: number | null, receivedSince = 0): number | null {
   return lastCounted === null ? null : round2(lastCounted + receivedSince);
+}
+
+/**
+ * Whether a delivery adds to an item counted on `countedOn` (business-local dates). A delivery received the
+ * same day is added unless it was already on the shelf when the count was done.
+ */
+export function deliveryCounts(receivedOn: LocalDate, onShelfForCount: boolean, countedOn: LocalDate) {
+  return receivedOn > countedOn || (receivedOn === countedOn && !onShelfForCount);
+}
+
+/** Price of one count unit, or `null` when the line has no price. */
+export function unitCost(lineTotal: number | null, quantity: number) {
+  return lineTotal === null || quantity <= 0 ? null : lineTotal / quantity;
+}
+
+export function stockValue(onHand: number | null, cost: number | null) {
+  return onHand === null || cost === null ? null : round2(onHand * cost);
+}
+
+/** A typed dollar amount ("$1,234.50"); blank is `null`. */
+export function parseMoney(value: string): number | null {
+  const trimmed = value.trim().replace(/^\$/, "").replace(/,/g, "");
+  if (trimmed === "") return null;
+  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) throw new Error("Enter an amount like 42.50.");
+  const number = Number(trimmed);
+  if (number > MAX_QUANTITY) throw new Error("Enter a smaller amount.");
+  return number;
+}
+
+const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
+export function formatMoney(value: number | null) {
+  return value === null ? "—" : dollars.format(value);
 }
 
 export function round2(value: number) {

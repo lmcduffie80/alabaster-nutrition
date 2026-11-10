@@ -1,21 +1,27 @@
 import "server-only";
-import { and, asc, count as countRows, desc, eq, isNotNull, isNull, max, sql } from "drizzle-orm";
+import { and, asc, count as countRows, desc, eq, inArray, isNotNull, isNull, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { schema, type Db } from "@/db";
 import {
   countDue,
+  deliveryCounts,
   isLow,
   itemTypes,
   onHand,
+  parseMoney,
   parseQuantity,
   reorderAmount,
+  round2,
+  stockValue,
+  unitCost,
   type ItemType,
 } from "@/lib/domain/inventory";
+import { isLocalDate, localDateOf, type LocalDate } from "@/lib/domain/time";
 import { getBusiness } from "./business";
 import { UserError } from "./errors";
 import { listEmployees } from "./team";
 
-const { storageSpot, supplier, inventoryItem, inventoryCount, inventoryCountLine } = schema;
+const { storageSpot, supplier, inventoryItem, inventoryCount, inventoryCountLine, delivery, deliveryLine, inventoryAudit } = schema;
 
 function parse<T>(schemaToUse: z.ZodType<T>, value: unknown): T {
   const result = schemaToUse.safeParse(value);
@@ -416,16 +422,276 @@ export async function listCounts(db: Db, limit = 52): Promise<CountSummary[]> {
   }));
 }
 
+// Deliveries
+
+export type DeliveryLineInput = {
+  itemId: string;
+  quantity: string;
+  lineTotal: string;
+  invoiceCode?: string;
+  invoiceDescription?: string;
+};
+
+/** Everything as typed into the delivery form; quantities are in each item's count unit. */
+export type DeliveryInput = {
+  supplierId: string;
+  invoiceNumber: string;
+  invoiceTotal: string;
+  receivedOn: string;
+  onShelfForCount: boolean;
+  lines: DeliveryLineInput[];
+};
+
+export const MAX_DELIVERY_LINES = 100;
+
+function money(value: string, label: string) {
+  try {
+    return parseMoney(value);
+  } catch (error) {
+    throw new UserError(`${label}: ${(error as Error).message}`);
+  }
+}
+
+async function parseDelivery(db: Db, input: DeliveryInput, today: LocalDate) {
+  if (!isId(input.supplierId)) throw new UserError("Choose the supplier.");
+  const [found] = await db.select({ id: supplier.id }).from(supplier).where(eq(supplier.id, input.supplierId));
+  if (!found) throw new UserError("Choose the supplier.");
+  if (!isLocalDate(input.receivedOn)) throw new UserError("Enter the date it arrived.");
+  if (input.receivedOn > today) throw new UserError("The received date can't be in the future.");
+  const invoiceNumber = input.invoiceNumber.trim() || null;
+  if (invoiceNumber && invoiceNumber.length > 40) throw new UserError("Keep the invoice number under 40 characters.");
+  const invoiceTotal = money(input.invoiceTotal, "Invoice total");
+
+  const filled = input.lines.filter((line) => line.itemId || line.quantity.trim() || line.lineTotal.trim());
+  if (filled.length === 0) throw new UserError("Add at least one item.");
+  if (filled.length > MAX_DELIVERY_LINES) throw new UserError(`A delivery can have up to ${MAX_DELIVERY_LINES} lines.`);
+  const ids = [...new Set(filled.map((line) => line.itemId))];
+  if (!ids.every(isId)) throw new UserError("Choose an item on every line.");
+  const items = await db
+    .select({ id: inventoryItem.id, name: inventoryItem.name })
+    .from(inventoryItem)
+    .where(inArray(inventoryItem.id, ids));
+  const names = new Map(items.map((i) => [i.id, i.name]));
+
+  const lines = filled.map((line) => {
+    const name = names.get(line.itemId);
+    if (!name) throw new UserError("Choose an item on every line.");
+    let quantity: number | null;
+    try {
+      quantity = parseQuantity(line.quantity);
+    } catch {
+      throw new UserError(`${name}: enter the quantity received, like 4 or 2.5.`);
+    }
+    if (!quantity) throw new UserError(`${name}: enter the quantity received.`);
+    return {
+      itemId: line.itemId,
+      quantity,
+      lineTotal: money(line.lineTotal, name),
+      invoiceCode: line.invoiceCode?.trim().slice(0, 40) || null,
+      invoiceDescription: line.invoiceDescription?.trim().slice(0, 200) || null,
+    };
+  });
+  return { header: { supplierId: found.id, invoiceNumber, invoiceTotal, receivedOn: input.receivedOn, onShelfForCount: input.onShelfForCount }, lines };
+}
+
+const duplicateInvoice = "That invoice number from this supplier is already recorded.";
+
+async function businessToday(db: Db, now: Date) {
+  return localDateOf(now, (await getBusiness(db)).timeZone);
+}
+
+export async function recordDelivery(db: Db, input: DeliveryInput, who: { actor: string; now: Date }) {
+  const { header, lines } = await parseDelivery(db, input, await businessToday(db, who.now));
+  return unique(
+    db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(delivery)
+        .values({ ...header, recordedBy: who.actor, recordedAt: who.now })
+        .returning({ id: delivery.id });
+      await tx.insert(deliveryLine).values(lines.map((line) => ({ ...line, deliveryId: row.id })));
+      return row.id;
+    }),
+    duplicateInvoice,
+  );
+}
+
+const reasonSchema = z.string().trim().min(1, "Enter a reason for the change.").max(200, "Keep the reason under 200 characters.");
+
+async function deliverySnapshot(db: Db, id: string) {
+  if (!isId(id)) return null;
+  const [header] = await db
+    .select()
+    .from(delivery)
+    .where(and(eq(delivery.id, id), isNull(delivery.deletedAt)));
+  if (!header) return null;
+  const lines = await db
+    .select({ itemId: deliveryLine.itemId, quantity: deliveryLine.quantity, lineTotal: deliveryLine.lineTotal })
+    .from(deliveryLine)
+    .where(eq(deliveryLine.deliveryId, id));
+  return { ...header, lines };
+}
+
+export async function updateDelivery(db: Db, id: string, input: DeliveryInput, who: { actor: string; now: Date; reason: string }) {
+  const reason = parse(reasonSchema, who.reason);
+  const before = await deliverySnapshot(db, id);
+  if (!before) throw new UserError("That delivery no longer exists.");
+  const { header, lines } = await parseDelivery(db, input, await businessToday(db, who.now));
+  await unique(
+    db.transaction(async (tx) => {
+      await tx.update(delivery).set(header).where(eq(delivery.id, id));
+      await tx.delete(deliveryLine).where(eq(deliveryLine.deliveryId, id));
+      await tx.insert(deliveryLine).values(lines.map((line) => ({ ...line, deliveryId: id })));
+      await tx.insert(inventoryAudit).values({
+        entity: "delivery",
+        entityId: id,
+        action: "edit",
+        before,
+        after: { ...header, lines },
+        reason,
+        actor: who.actor,
+        at: who.now,
+      });
+    }),
+    duplicateInvoice,
+  );
+}
+
+export async function deleteDelivery(db: Db, id: string, who: { actor: string; now: Date; reason: string }) {
+  const reason = parse(reasonSchema, who.reason);
+  const before = await deliverySnapshot(db, id);
+  if (!before) throw new UserError("That delivery no longer exists.");
+  await db.transaction(async (tx) => {
+    await tx.update(delivery).set({ deletedAt: who.now }).where(eq(delivery.id, id));
+    await tx
+      .insert(inventoryAudit)
+      .values({ entity: "delivery", entityId: id, action: "delete", before, reason, actor: who.actor, at: who.now });
+  });
+}
+
+export type DeliverySummary = {
+  id: string;
+  receivedOn: LocalDate;
+  supplierName: string;
+  invoiceNumber: string | null;
+  total: number | null;
+  lineCount: number;
+  recordedBy: string;
+};
+
+export async function listDeliveries(db: Db, limit = 100): Promise<DeliverySummary[]> {
+  const rows = await db
+    .select({
+      id: delivery.id,
+      receivedOn: delivery.receivedOn,
+      supplierName: supplier.name,
+      invoiceNumber: delivery.invoiceNumber,
+      total: sql<number | null>`sum(${deliveryLine.lineTotal})`.mapWith((v) => (v === null ? null : Number(v))),
+      lineCount: sql<number>`count(${deliveryLine.id})`.mapWith(Number),
+      recordedBy: delivery.recordedBy,
+    })
+    .from(delivery)
+    .innerJoin(supplier, eq(supplier.id, delivery.supplierId))
+    .leftJoin(deliveryLine, eq(deliveryLine.deliveryId, delivery.id))
+    .where(isNull(delivery.deletedAt))
+    .groupBy(delivery.id, supplier.name)
+    .orderBy(desc(delivery.receivedOn), desc(delivery.recordedAt))
+    .limit(limit);
+  return rows;
+}
+
+export type DeliveryLineView = {
+  itemId: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  lineTotal: number | null;
+  invoiceCode: string | null;
+  invoiceDescription: string | null;
+};
+
+export type DeliveryView = typeof delivery.$inferSelect & { supplierName: string; total: number | null; lines: DeliveryLineView[] };
+
+export async function getDelivery(db: Db, id: string): Promise<DeliveryView | null> {
+  if (!isId(id)) return null;
+  const [header] = await db
+    .select({ delivery, supplierName: supplier.name })
+    .from(delivery)
+    .innerJoin(supplier, eq(supplier.id, delivery.supplierId))
+    .where(and(eq(delivery.id, id), isNull(delivery.deletedAt)));
+  if (!header) return null;
+  const lines = await db
+    .select({
+      itemId: deliveryLine.itemId,
+      name: inventoryItem.name,
+      unit: inventoryItem.unit,
+      quantity: deliveryLine.quantity,
+      lineTotal: deliveryLine.lineTotal,
+      invoiceCode: deliveryLine.invoiceCode,
+      invoiceDescription: deliveryLine.invoiceDescription,
+    })
+    .from(deliveryLine)
+    .innerJoin(inventoryItem, eq(inventoryItem.id, deliveryLine.itemId))
+    .where(eq(deliveryLine.deliveryId, id))
+    .orderBy(asc(deliveryLine.id));
+  const priced = lines.filter((l) => l.lineTotal !== null);
+  return {
+    ...header.delivery,
+    supplierName: header.supplierName,
+    total: priced.length ? round2(priced.reduce((sum, l) => sum + l.lineTotal!, 0)) : null,
+    lines,
+  };
+}
+
 // Stock
 
-export type StockRow = Item & { onHand: number | null; lastCountedAt: Date | null; low: boolean };
+export type StockRow = Item & {
+  onHand: number | null;
+  lastCountedAt: Date | null;
+  low: boolean;
+  /** Per count unit: the latest priced delivery, else the item's default cost. */
+  unitCost: number | null;
+  value: number | null;
+};
+
+async function liveDeliveryLines(db: Db) {
+  return db
+    .select({
+      itemId: deliveryLine.itemId,
+      quantity: deliveryLine.quantity,
+      lineTotal: deliveryLine.lineTotal,
+      receivedOn: delivery.receivedOn,
+      onShelfForCount: delivery.onShelfForCount,
+    })
+    .from(deliveryLine)
+    .innerJoin(delivery, eq(delivery.id, deliveryLine.deliveryId))
+    .where(isNull(delivery.deletedAt))
+    .orderBy(asc(delivery.receivedOn), asc(delivery.recordedAt));
+}
 
 export async function stockRows(db: Db): Promise<StockRow[]> {
-  const [items, counts] = await Promise.all([listItems(db), lastCounts(db)]);
+  const [items, counts, lines, { timeZone }] = await Promise.all([listItems(db), lastCounts(db), liveDeliveryLines(db), getBusiness(db)]);
+  const received = new Map<string, number>();
+  const latestCost = new Map<string, number>();
+  for (const line of lines) {
+    const cost = unitCost(line.lineTotal, line.quantity);
+    if (cost !== null) latestCost.set(line.itemId, cost);
+    const last = counts.get(line.itemId);
+    if (last && deliveryCounts(line.receivedOn, line.onShelfForCount, localDateOf(last.at, timeZone))) {
+      received.set(line.itemId, (received.get(line.itemId) ?? 0) + line.quantity);
+    }
+  }
   return items.map((item) => {
     const last = counts.get(item.id);
-    const quantity = onHand(last?.quantity ?? null);
-    return { ...item, onHand: quantity, lastCountedAt: last?.at ?? null, low: isLow(quantity, item.reorderAt) };
+    const quantity = onHand(last?.quantity ?? null, received.get(item.id));
+    const cost = latestCost.get(item.id) ?? item.defaultUnitCost;
+    return {
+      ...item,
+      onHand: quantity,
+      lastCountedAt: last?.at ?? null,
+      low: isLow(quantity, item.reorderAt),
+      unitCost: cost,
+      value: stockValue(quantity, cost),
+    };
   });
 }
 

@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { countDue, formatQuantity, isLow, onHand, parseQuantity, reorderAmount } from "./inventory";
+import {
+  countDue,
+  deliveryCounts,
+  formatMoney,
+  formatQuantity,
+  isLow,
+  onHand,
+  parseMoney,
+  parseQuantity,
+  reorderAmount,
+  stockValue,
+  unitCost,
+} from "./inventory";
 
 const tz = "America/New_York";
 const SUNDAY = 0;
@@ -85,5 +97,31 @@ describe("stock levels", () => {
     expect(onHand(null)).toBeNull();
     expect(onHand(4)).toBe(4);
     expect(onHand(4, 2.5)).toBe(6.5);
+  });
+});
+
+describe("deliveries and costs", () => {
+  it("adds deliveries after the count, and same-day ones unless already on the shelf", () => {
+    expect(deliveryCounts("2026-11-10", false, "2026-11-09")).toBe(true);
+    expect(deliveryCounts("2026-11-08", false, "2026-11-09")).toBe(false);
+    expect(deliveryCounts("2026-11-09", false, "2026-11-09")).toBe(true);
+    expect(deliveryCounts("2026-11-09", true, "2026-11-09")).toBe(false);
+  });
+
+  it("prices one count unit from the line total", () => {
+    expect(unitCost(84, 4)).toBe(21);
+    expect(unitCost(null, 4)).toBeNull();
+    expect(stockValue(2.5, 21)).toBe(52.5);
+    expect(stockValue(null, 21)).toBeNull();
+    expect(stockValue(3, null)).toBeNull();
+  });
+
+  it("reads and shows dollar amounts", () => {
+    expect(parseMoney("$1,234.5")).toBe(1234.5);
+    expect(parseMoney(" ")).toBeNull();
+    expect(() => parseMoney("12.345")).toThrow(/42.50/);
+    expect(() => parseMoney("-3")).toThrow();
+    expect(formatMoney(1234.5)).toBe("$1,234.50");
+    expect(formatMoney(null)).toBe("—");
   });
 });

@@ -22,8 +22,15 @@ import {
   setItemActive,
   startOrContinueCount,
   stockRows,
+  recordDelivery,
+  updateDelivery,
+  deleteDelivery,
+  getDelivery,
+  listDeliveries,
+  type DeliveryInput,
   type ItemInput,
 } from "./inventory";
+import { schema } from "@/db";
 import { addEmployee } from "./team";
 
 let db: Db;
@@ -202,5 +209,76 @@ describe("stock and reorder", () => {
     expect((await inventorySummary(db, sunday)).openCount).toMatchObject({ counted: 1, total: 1 });
     await finishCount(db, { countId, employeeId: ava, now: sunday });
     expect(await inventorySummary(db, sunday)).toMatchObject({ countDue: false, lowCount: 1, openCount: null });
+  });
+});
+
+describe("deliveries", () => {
+  // Counted Sunday Nov 15 (10am in New York).
+  async function countedItem(quantity: number) {
+    const sysco = await addSupplier(db, { name: "Sysco", contact: "", notes: "" });
+    const itemId = await addItem(db, item({ supplierId: sysco, defaultUnitCost: "18" }));
+    const countId = await startOrContinueCount(db, { employeeId: ava, now: sunday });
+    await enterCountLine(db, { countId, itemId, quantity, employeeId: ava, now: sunday });
+    await finishCount(db, { countId, employeeId: ava, now: sunday });
+    return { sysco, itemId };
+  }
+  const who = { actor: "owner@example.com", now: new Date("2026-11-17T15:00:00Z") };
+  const input = (supplierId: string, itemId: string, overrides: Partial<DeliveryInput> = {}): DeliveryInput => ({
+    supplierId,
+    invoiceNumber: "",
+    invoiceTotal: "",
+    receivedOn: "2026-11-16",
+    onShelfForCount: false,
+    lines: [{ itemId, quantity: "4", lineTotal: "84" }],
+    ...overrides,
+  });
+  const stockOf = async (itemId: string) => (await stockRows(db)).find((r) => r.id === itemId)!;
+
+  it("adds to on hand after the count, and prices stock from the latest delivery", async () => {
+    const { sysco, itemId } = await countedItem(2);
+    expect(await stockOf(itemId)).toMatchObject({ onHand: 2, unitCost: 18, value: 36, low: true });
+
+    await recordDelivery(db, input(sysco, itemId), who);
+    expect(await stockOf(itemId)).toMatchObject({ onHand: 6, unitCost: 21, value: 126, low: false });
+
+    // Before the count: already in that count. Same day, on the shelf: also already counted.
+    await recordDelivery(db, input(sysco, itemId, { receivedOn: "2026-11-14", lines: [{ itemId, quantity: "5", lineTotal: "" }] }), who);
+    await recordDelivery(db, input(sysco, itemId, { receivedOn: "2026-11-15", onShelfForCount: true, lines: [{ itemId, quantity: "5", lineTotal: "" }] }), who);
+    expect((await stockOf(itemId)).onHand).toBe(6);
+    await recordDelivery(db, input(sysco, itemId, { receivedOn: "2026-11-15", lines: [{ itemId, quantity: "1", lineTotal: "" }] }), who);
+    expect((await stockOf(itemId)).onHand).toBe(7);
+  });
+
+  it("leaves never-counted items unknown", async () => {
+    const sysco = await addSupplier(db, { name: "Sysco", contact: "", notes: "" });
+    const itemId = await addItem(db, item());
+    await recordDelivery(db, input(sysco, itemId), who);
+    expect(await stockOf(itemId)).toMatchObject({ onHand: null, low: false, unitCost: 21, value: null });
+  });
+
+  it("checks the form and refuses a repeated invoice number", async () => {
+    const { sysco, itemId } = await countedItem(2);
+    await rejects(recordDelivery(db, input(sysco, itemId, { lines: [] }), who), /at least one item/);
+    await rejects(recordDelivery(db, input(sysco, itemId, { lines: [{ itemId, quantity: "0", lineTotal: "" }] }), who), /quantity/);
+    await rejects(recordDelivery(db, input(sysco, itemId, { receivedOn: "2026-11-20" }), who), /future/);
+    await rejects(recordDelivery(db, input(sysco, itemId, { invoiceTotal: "abc" }), who), /Invoice total/);
+    await recordDelivery(db, input(sysco, itemId, { invoiceNumber: "INV-1" }), who);
+    await rejects(recordDelivery(db, input(sysco, itemId, { invoiceNumber: "inv-1" }), who), /already recorded/);
+  });
+
+  it("audits edits and deletes, and deleted deliveries stop counting", async () => {
+    const { sysco, itemId } = await countedItem(2);
+    const id = await recordDelivery(db, input(sysco, itemId), who);
+    await rejects(updateDelivery(db, id, input(sysco, itemId), { ...who, reason: " " }), /reason/);
+    await updateDelivery(db, id, input(sysco, itemId, { lines: [{ itemId, quantity: "3", lineTotal: "60" }] }), { ...who, reason: "Short one tub" });
+    expect(await getDelivery(db, id)).toMatchObject({ supplierName: "Sysco", total: 60, lines: [{ quantity: 3, lineTotal: 60, name: "Vanilla protein" }] });
+    expect(await stockOf(itemId)).toMatchObject({ onHand: 5, unitCost: 20 });
+
+    await deleteDelivery(db, id, { ...who, reason: "Entered twice" });
+    expect(await getDelivery(db, id)).toBeNull();
+    expect(await listDeliveries(db)).toEqual([]);
+    expect(await stockOf(itemId)).toMatchObject({ onHand: 2, unitCost: 18 });
+    const audit = await db.select().from(schema.inventoryAudit);
+    expect(audit.map((a) => [a.action, a.reason])).toEqual([["edit", "Short one tub"], ["delete", "Entered twice"]]);
   });
 });

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
 import { getDb } from "@/db";
-import { formatQuantity, itemTypeLabel, itemTypes, type ItemType } from "@/lib/domain/inventory";
+import { formatMoney, formatQuantity, itemTypeLabel, itemTypes, round2, type ItemType } from "@/lib/domain/inventory";
 import { formatDay, localDateOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
 import { inventorySummary, stockRows } from "@/lib/server/inventory";
@@ -50,6 +50,22 @@ export default async function StockPage({ searchParams }: PageProps<"/manage/inv
           </Link>
         </Card>
       )}
+      <div className="mb-4 grid gap-2 sm:grid-cols-3">
+        {[
+          { label: "Stock value", rows },
+          ...itemTypes.map((t) => ({ label: `${itemTypeLabel[t]}s`, rows: rows.filter((r) => r.type === t) })),
+        ].map(({ label, rows: group }) => {
+          const unpriced = group.filter((r) => r.onHand !== null && r.unitCost === null).length;
+          return (
+            <Card key={label} className="py-3">
+              <p className="text-xs text-ink/50">{label}</p>
+              <p className="text-xl font-semibold tabular-nums">{formatMoney(round2(group.reduce((sum, r) => sum + (r.value ?? 0), 0)))}</p>
+              {unpriced > 0 && <p className="text-xs text-ink/50">{unpriced} without a price</p>}
+            </Card>
+          );
+        })}
+      </div>
+
       <div className="mb-4 flex flex-wrap gap-2">
         {filter("All", {}, !type && !lowOnly)}
         {itemTypes.map((t) => filter(`${itemTypeLabel[t]}s`, { type: t }, type === t && !lowOnly))}
@@ -67,6 +83,8 @@ export default async function StockPage({ searchParams }: PageProps<"/manage/inv
                   <th className="px-4 py-2 font-medium">Item</th>
                   <th className="px-4 py-2 font-medium">On hand</th>
                   <th className="px-4 py-2 font-medium">Reorder at</th>
+                  <th className="px-4 py-2 text-right font-medium">Cost each</th>
+                  <th className="px-4 py-2 text-right font-medium">Value</th>
                   <th className="px-4 py-2 font-medium">Last counted</th>
                 </tr>
               </thead>
@@ -84,6 +102,10 @@ export default async function StockPage({ searchParams }: PageProps<"/manage/inv
                         {r.low && <Badge tone="red">Low</Badge>}
                       </td>
                       <td className="px-4 py-2 tabular-nums text-ink/70">{formatQuantity(r.reorderAt, r.unit)}</td>
+                      <td className="px-4 py-2 text-right tabular-nums text-ink/70">
+                        {r.unitCost === null ? <span className="text-ink/40">No price</span> : formatMoney(r.unitCost)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">{formatMoney(r.value)}</td>
                       <td className="px-4 py-2 text-ink/70">{r.lastCountedAt ? formatDay(localDateOf(r.lastCountedAt, timeZone)) : "—"}</td>
                     </tr>
                   ))}
