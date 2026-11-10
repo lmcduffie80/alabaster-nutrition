@@ -12,7 +12,7 @@ Add inventory to the existing web app at app.alabasternutrition.com so the store
 - record deliveries with what was paid,
 - see weekly usage (to spot waste or theft), stock value, and spending.
 
-Out of scope: packaged retail products, equipment, register/POS integration, automatic deduction per drink, unit conversions (e.g. cases to sleeves), multiple stores.
+Out of scope: packaged retail products, equipment, register/POS integration, automatic deduction per drink, unit conversions beyond each item's invoice pack size, multiple stores.
 
 ## Who does what
 
@@ -25,7 +25,7 @@ Manager access follows the existing rules (`MANAGER_EMAILS` account sign-in, or 
 
 ## Concepts
 
-**Item** — name (unique, case-insensitive), type (`ingredient` or `supply`), count unit (free text, singular, e.g. "tub", "bag", "sleeve of 50 cups"), storage spot, supplier (optional), reorder-at level, order-up-to level (must be greater than reorder-at), default unit cost (optional, used until the first delivery has a price), active flag. Items are deactivated, never deleted.
+**Item** — name (unique, case-insensitive), type (`ingredient` or `supply`), count unit (free text, singular, e.g. "tub", "bag", "sleeve of 50 cups"), storage spot, supplier (optional), reorder-at level, order-up-to level (must be greater than reorder-at), default unit cost (optional, used until the first delivery has a price), supplier item code (optional, unique per supplier), pack size (how many count units are in one invoice unit, e.g. 1 case = 20 sleeves; default 1), active flag. Items are deactivated, never deleted.
 
 **Storage spot** — a named place in the store with a sort order (e.g. Back room, Fridge, Front counter). The count screen walks spots in this order, and items alphabetically within a spot. Managers can add, rename, and reorder spots. A spot with active items can't be removed.
 
@@ -75,6 +75,28 @@ New **Inventory** tab in `/manage` with sub-pages:
 
 The **Today** page gains a card: "Inventory: 4 items running low · count due today" linking to the reorder list or counts.
 
+## Scanning invoices
+
+On **Record delivery**, a manager can tap **Scan invoice** and take or choose up to 5 photos (one per page) on a phone, the iPad, or a Mac.
+
+1. Photos are resized in the browser (longest side 2000 px, JPEG) and uploaded to a private Vercel Blob store.
+2. The server sends them to an OpenAI vision model through the AI SDK (`@ai-sdk/openai`, using the store's own `OPENAI_API_KEY`) with a structured-output schema:
+   supplier name, invoice number, invoice date, invoice total, and lines of { item code, description, quantity, invoice unit, unit price, line total }. Fields the model can't read come back empty, not guessed. The exact model is chosen at build time from OpenAI's current vision models.
+3. The app pre-fills the delivery form:
+   - Supplier: matched by name to an existing supplier, or offered as a new supplier.
+   - Date: invoice date, falling back to today.
+   - Each line is matched to an item by (supplier, supplier item code); otherwise it is flagged **Unmatched** and the manager chooses: an existing item (the code is saved on that item for next time), **New item** (pre-filled from the description), or **Ignore** (fees, products we don't track).
+   - Quantity received = invoice quantity × the item's pack size.
+4. Checks shown before saving:
+   - The sum of line totals differs from the invoice total by more than $0.01.
+   - The same supplier and invoice number were already recorded.
+   - Any line is still unmatched.
+5. Nothing is saved until **Save delivery**. The photos are attached to the saved delivery and viewable from it. Photos from a scan that is abandoned are deleted after 24 hours.
+
+Failure handling: if the photo can't be read or OpenAI is unavailable, the manager sees "Couldn't read this invoice — enter it below" with the manual form and the photos still attached. Requests time out after 60 seconds. Scanning is limited to managers and to 30 scans per day.
+
+Privacy: invoice photos go to OpenAI's API, which doesn't train on business API data by default. The photos are stored privately and are only served to managers.
+
 ## Reports
 
 **Weekly usage** — for each pair of consecutive finished counts:
@@ -95,11 +117,13 @@ usage = previous count + deliveries between them − this count.
 
 - `storage_spot` (id, name, sort_order)
 - `supplier` (id, name, contact, notes, active)
-- `inventory_item` (id, name, type, unit, storage_spot_id, supplier_id null, reorder_at, order_up_to, default_unit_cost null, active, created_at)
+- `inventory_item` (id, name, type, unit, storage_spot_id, supplier_id null, supplier_code null, pack_size default 1, reorder_at, order_up_to, default_unit_cost null, active, created_at) — unique (supplier_id, supplier_code)
 - `inventory_count` (id, status, started_at, started_by, finished_at null, finished_by null, cancelled_at null)
 - `inventory_count_line` (count_id, item_id, quantity null, entered_by null, entered_at null) — primary key (count_id, item_id)
-- `delivery` (id, supplier_id, received_on, on_shelf_for_count, recorded_by, recorded_at, deleted_at null)
-- `delivery_line` (id, delivery_id, item_id, quantity, line_total null)
+- `delivery` (id, supplier_id, invoice_number null, invoice_total null, received_on, on_shelf_for_count, recorded_by, recorded_at, deleted_at null)
+- `delivery_line` (id, delivery_id, item_id, quantity, line_total null, invoice_code null, invoice_description null)
+- `invoice_photo` (id, delivery_id null, blob_pathname, uploaded_by, uploaded_at, page) — rows with no delivery after 24 hours are deleted with their blobs by a daily cron job
+- `invoice_scan` (id, actor_id, at, ok) — for the daily scan limit
 - `inventory_audit` (id, entity, entity_id, action, before json, after json, reason, actor_id, at)
 - `business.count_weekday` (smallint, default 0 = Sunday)
 
@@ -120,11 +144,12 @@ Money is stored as `numeric(10,2)` dollars. Business rules (on hand, due, usage,
 - Server integration tests on PGlite: start/continue/finish a count, two employees on one count, one-open-count rule, count fixes with audit, deliveries affecting on hand, deactivated items.
 - Action tests: employees can't reach manager inventory actions; count entries need a valid count session on an enrolled kiosk.
 - Component test for the count screen: entry saves, retry on failure, skip confirmation.
+- Invoice scanning: the OpenAI call is behind one function so tests use fixed model output. Tests cover code matching, pack-size conversion, the total and duplicate-invoice checks, unmatched lines, and the fallback when the model fails. One manual check with real invoice photos before release.
 
 ## Build order
 
 Each step ships to production on its own:
 
 1. Storage spots, suppliers, items, the iPad count, Counts list (view counts, cancel an open count), Stock page, running-low card, reorder list.
-2. Deliveries and costs (current unit cost, stock value).
+2. Deliveries and costs (current unit cost, stock value), then invoice scanning with stored photos.
 3. Fixes to finished counts, weekly usage, spending reports, CSV export.
