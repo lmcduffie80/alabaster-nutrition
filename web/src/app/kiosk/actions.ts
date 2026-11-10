@@ -1,15 +1,30 @@
 "use server";
 
 import { z } from "zod";
-import { getDb } from "@/db";
+import { getDb, type Db } from "@/db";
+import { parseQuantity } from "@/lib/domain/inventory";
 import { punchKinds, punchVerb } from "@/lib/domain/punches";
 import { formatTime } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
 import { UserError } from "@/lib/server/errors";
+import {
+  enterCountLine,
+  finishCount,
+  getCount,
+  startOrContinueCount,
+  type CountLineView,
+} from "@/lib/server/inventory";
 import { checkKioskPin, type PinCheck } from "@/lib/server/kiosk";
 import { kioskEmployeeView, type KioskEmployeeView } from "@/lib/server/kiosk-view";
 import { recordKioskPunch } from "@/lib/server/punches";
-import { currentKiosk, endKioskManagerSession, startKioskManagerSession } from "@/lib/server/session";
+import {
+  currentKiosk,
+  endCountSession,
+  endKioskManagerSession,
+  getCountSession,
+  startCountSession,
+  startKioskManagerSession,
+} from "@/lib/server/session";
 
 export type PinResult =
   | { kind: "employee"; view: KioskEmployeeView }
@@ -79,4 +94,96 @@ export async function unlockManager(pin: string): Promise<PinResult | { kind: "m
 
 export async function lockManager() {
   await endKioskManagerSession();
+}
+
+// Inventory count
+
+export type CountScreenView = {
+  countId: string;
+  lines: Pick<CountLineView, "itemId" | "name" | "unit" | "spotName" | "lastCounted" | "quantity" | "enteredBy">[];
+};
+
+export type CountResult =
+  | { kind: "counting"; view: CountScreenView }
+  | { kind: "saved"; quantity: number | null }
+  | { kind: "finished"; skipped: number }
+  | { kind: "expired" }
+  | { kind: "error"; message: string }
+  | PinResult;
+
+async function countScreenView(db: Db, countId: string): Promise<CountScreenView> {
+  const count = await getCount(db, countId);
+  return {
+    countId,
+    lines: (count?.lines ?? []).map(({ itemId, name, unit, spotName, lastCounted, quantity, enteredBy }) => ({
+      itemId,
+      name,
+      unit,
+      spotName,
+      lastCounted,
+      quantity,
+      enteredBy,
+    })),
+  };
+}
+
+async function asCountResult(work: () => Promise<CountResult>): Promise<CountResult> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof UserError) return { kind: "error", message: error.message };
+    throw error;
+  }
+}
+
+/** The PIN is checked once; a short count session then covers each entry. */
+export async function startCounting(pin: string): Promise<CountResult> {
+  const kiosk = await currentKiosk();
+  if (!kiosk) return { kind: "notKiosk" };
+  const db = await getDb();
+  const now = new Date();
+  const check = await checkKioskPin(db, { kioskId: kiosk.id, pin: pinSchema.safeParse(pin).data ?? "", expect: "employee", now });
+  if (check.kind === "locked") return lockedResult(check, now);
+  if (check.kind !== "employee") return { kind: "wrong" };
+  return asCountResult(async () => {
+    const countId = await startOrContinueCount(db, { employeeId: check.employeeId, now });
+    await startCountSession(kiosk.id, check.employeeId, now);
+    return { kind: "counting", view: await countScreenView(db, countId) };
+  });
+}
+
+const entrySchema = z.object({ countId: z.uuid(), itemId: z.uuid(), quantity: z.string().max(20) });
+
+export async function enterCount(input: { countId: string; itemId: string; quantity: string }): Promise<CountResult> {
+  const session = await getCountSession();
+  if (!session) return { kind: "expired" };
+  const parsed = entrySchema.safeParse(input);
+  if (!parsed.success) return { kind: "error", message: "Something went wrong. Try again." };
+  let quantity: number | null;
+  try {
+    quantity = parseQuantity(parsed.data.quantity);
+  } catch (error) {
+    return { kind: "error", message: (error as Error).message };
+  }
+  return asCountResult(async () => {
+    const now = new Date();
+    await enterCountLine(await getDb(), { ...parsed.data, quantity, employeeId: session.employeeId, now });
+    await startCountSession(session.kioskId, session.employeeId, now);
+    return { kind: "saved", quantity };
+  });
+}
+
+export async function finishCounting(input: { countId: string }): Promise<CountResult> {
+  const session = await getCountSession();
+  if (!session) return { kind: "expired" };
+  if (!z.uuid().safeParse(input.countId).success) return { kind: "error", message: "This count is no longer open." };
+  return asCountResult(async () => {
+    const { skipped } = await finishCount(await getDb(), { countId: input.countId, employeeId: session.employeeId, now: new Date() });
+    await endCountSession();
+    return { kind: "finished", skipped };
+  });
+}
+
+export async function stopCounting() {
+  await endCountSession();
 }

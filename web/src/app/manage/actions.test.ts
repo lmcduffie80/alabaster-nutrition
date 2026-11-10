@@ -36,7 +36,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 const { addEmployeeAction, enrollKioskAction, setManagerPinAction } = await import("./actions");
-const { unlockManager, enterEmployeePin } = await import("../kiosk/actions");
+const { unlockManager, enterEmployeePin, startCounting, enterCount, finishCounting } = await import("../kiosk/actions");
+const inventory = await import("@/lib/server/inventory");
 
 function form(fields: Record<string, string>) {
   const data = new FormData();
@@ -121,5 +122,61 @@ describe("kiosk and manager PIN", () => {
     // A manager ticket copied to a browser without the kiosk cookie is useless.
     state.cookies.delete("alabaster_kiosk");
     await expect(addEmployeeAction(null, form({ displayName: "Eve", email: "" }))).rejects.toThrow("REDIRECT /");
+  });
+});
+
+describe("inventory count on the kiosk", () => {
+  async function setUpKioskWithItem() {
+    state.user = { email: "owner@example.com" };
+    await expect(enrollKioskAction(form({ label: "Counter iPad" }))).rejects.toThrow("REDIRECT /kiosk/ready");
+    const added = await addEmployeeAction(null, form({ displayName: "Ava", email: "" }));
+    const spotId = await inventory.addSpot(state.db, "Back room");
+    const itemId = await inventory.addItem(state.db, {
+      name: "Vanilla protein",
+      type: "ingredient",
+      unit: "tub",
+      spotId,
+      supplierId: "",
+      supplierCode: "",
+      packSize: "",
+      reorderAt: "2",
+      orderUpTo: "8",
+      defaultUnitCost: "",
+    });
+    state.user = null;
+    return { pin: added!.pin!, itemId };
+  }
+
+  it("needs the employee's PIN, then saves entries under their name", async () => {
+    const { pin, itemId } = await setUpKioskWithItem();
+    expect(await startCounting("0000")).toEqual({ kind: "wrong" });
+
+    const started = await startCounting(pin);
+    if (started.kind !== "counting") throw new Error(`expected counting, got ${started.kind}`);
+    const { countId } = started.view;
+    expect(started.view.lines.map((l) => l.name)).toEqual(["Vanilla protein"]);
+
+    expect(await enterCount({ countId, itemId, quantity: "2.5" })).toEqual({ kind: "saved", quantity: 2.5 });
+    expect(await enterCount({ countId, itemId, quantity: "-1" })).toMatchObject({ kind: "error" });
+    expect((await inventory.getCount(state.db, countId))?.lines[0]).toMatchObject({ quantity: 2.5, enteredBy: "Ava" });
+
+    expect(await finishCounting({ countId })).toEqual({ kind: "finished", skipped: 0 });
+    expect(state.cookies.has("alabaster_kiosk_count")).toBe(false);
+  });
+
+  it("refuses entries without a count session, or off the enrolled kiosk", async () => {
+    const { pin, itemId } = await setUpKioskWithItem();
+    const started = await startCounting(pin);
+    if (started.kind !== "counting") throw new Error("expected counting");
+    const { countId } = started.view;
+
+    const session = state.cookies.get("alabaster_kiosk_count")!;
+    state.cookies.delete("alabaster_kiosk_count");
+    expect(await enterCount({ countId, itemId, quantity: "3" })).toEqual({ kind: "expired" });
+
+    state.cookies.set("alabaster_kiosk_count", session);
+    state.cookies.delete("alabaster_kiosk");
+    expect(await enterCount({ countId, itemId, quantity: "3" })).toEqual({ kind: "expired" });
+    expect((await inventory.getCount(state.db, countId))?.lines[0].quantity).toBeNull();
   });
 });

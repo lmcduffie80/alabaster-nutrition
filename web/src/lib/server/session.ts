@@ -11,6 +11,8 @@ const KIOSK_COOKIE = "alabaster_kiosk";
 const KIOSK_MANAGER_COOKIE = "alabaster_kiosk_manager";
 const KIOSK_COOKIE_SECONDS = 365 * 24 * 3600;
 export const KIOSK_MANAGER_SECONDS = 10 * 60;
+const KIOSK_COUNT_COOKIE = "alabaster_kiosk_count";
+export const COUNT_SESSION_SECONDS = 5 * 60;
 
 export type Viewer =
   | { kind: "manager"; email: string; employeeId: string }
@@ -64,6 +66,7 @@ export async function clearKioskCookie() {
   const jar = await cookies();
   jar.delete(KIOSK_COOKIE);
   jar.delete(KIOSK_MANAGER_COOKIE);
+  jar.delete(KIOSK_COUNT_COOKIE);
 }
 
 type KioskManagerTicket = { kioskId: string; exp: number };
@@ -81,6 +84,32 @@ export async function startKioskManagerSession(kioskId: string, now = new Date()
 
 export async function endKioskManagerSession() {
   (await cookies()).delete(KIOSK_MANAGER_COOKIE);
+}
+
+type CountTicket = { kioskId: string; employeeId: string; exp: number };
+
+/** Lets an employee keep entering counts without retyping their PIN; extended on each entry. */
+export async function startCountSession(kioskId: string, employeeId: string, now = new Date()) {
+  const ticket: CountTicket = { kioskId, employeeId, exp: now.getTime() + COUNT_SESSION_SECONDS * 1000 };
+  (await cookies()).set(KIOSK_COUNT_COOKIE, sign(ticket), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+    maxAge: COUNT_SESSION_SECONDS,
+  });
+}
+
+export async function getCountSession(): Promise<{ kioskId: string; employeeId: string } | null> {
+  const ticket = verify<CountTicket>((await cookies()).get(KIOSK_COUNT_COOKIE)?.value);
+  if (!ticket || ticket.exp < Date.now()) return null;
+  const kiosk = await currentKiosk();
+  if (!kiosk || kiosk.id !== ticket.kioskId) return null;
+  return { kioskId: ticket.kioskId, employeeId: ticket.employeeId };
+}
+
+export async function endCountSession() {
+  (await cookies()).delete(KIOSK_COUNT_COOKIE);
 }
 
 export type Manager = {
