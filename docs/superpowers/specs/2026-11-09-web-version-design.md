@@ -56,7 +56,7 @@ The PIN keypad only works on a device the manager has enrolled.
 
 ### Accounts
 
-- The owner's email is set in an env var (`OWNER_EMAIL`) and is the only manager in version 1.
+- Manager emails are set in an env var (`MANAGER_EMAILS`, comma-separated). Everyone listed has full manager access.
 - An employee's phone sign-in works only if the manager has saved that exact email on an active employee. Deactivating the employee removes access.
 - Employees can read only published shifts. They cannot read punches, PINs, or other employees' pay data.
 
@@ -102,7 +102,7 @@ Punch rules (shared by the kiosk and timesheet math, unit-tested): an employee's
 ## 8. Rollout
 
 1. Build and test locally.
-2. Create the Vercel project, add Neon and Clerk from the Marketplace, set `OWNER_EMAIL` and `PIN_PEPPER`.
+2. Create the Vercel project, add Neon and Clerk from the Marketplace, set `MANAGER_EMAILS`, `PIN_PEPPER`, and `SESSION_SECRET`.
 3. Deploy, sign in as the owner, add employees and PINs, enroll the store iPad, and turn on Guided Access on the iPad (Settings → Accessibility → Guided Access) with Safari open to the kiosk page. Optionally add the page to the Home Screen first.
 4. Run the manual check, then start using it.
 

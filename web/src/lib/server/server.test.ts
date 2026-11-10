@@ -73,7 +73,7 @@ describe("team", () => {
 
   it("keeps the owner's email tied to the app setting", async () => {
     const ownerId = await ensureOwner(db, "owner@example.com", "Lee");
-    await rejects(updateEmployee(db, ownerId, { displayName: "Lee", email: "other@example.com" }), /OWNER_EMAIL/);
+    await rejects(updateEmployee(db, ownerId, { displayName: "Lee", email: "other@example.com" }), /MANAGER_EMAILS/);
     await rejects(setEmployeeActive(db, ownerId, false), /can't be deactivated/);
   });
 

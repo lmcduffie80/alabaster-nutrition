@@ -45,7 +45,7 @@ function form(fields: Record<string, string>) {
 }
 
 beforeEach(async () => {
-  process.env.OWNER_EMAIL = "owner@example.com";
+  process.env.MANAGER_EMAILS = "owner@example.com, Second.Manager@Example.com";
   state.db = await openLocalDatabase();
   state.user = null;
   state.cookies.clear();
@@ -80,6 +80,14 @@ describe("manager actions", () => {
     expect(result?.pin).toMatch(/^\d{4}$/);
     const [ava] = (await employees()).filter((e) => e.displayName === "Ava");
     expect(ava.pinDigest).not.toBe(result?.pin);
+  });
+
+  it("let every listed manager in", async () => {
+    state.user = { email: "second.manager@example.com" };
+    const result = await addEmployeeAction(null, form({ displayName: "Ava", email: "" }));
+    expect(result?.error).toBeUndefined();
+    const managers = (await employees()).filter((e) => e.role === "manager");
+    expect(managers.map((e) => e.email)).toEqual(["second.manager@example.com"]);
   });
 
   it("reject malformed ids instead of erroring", async () => {

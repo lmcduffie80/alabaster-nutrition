@@ -17,9 +17,9 @@ export type Viewer =
   | { kind: "employee"; email: string; employeeId: string; displayName: string }
   | { kind: "noAccess"; email: string | null };
 
-function ownerEmail() {
-  const value = process.env.OWNER_EMAIL;
-  return value ? normalizeEmail(value) : null;
+/** Comma-separated in `MANAGER_EMAILS`; everyone listed signs in as a manager. */
+export function managerEmails(value = process.env.MANAGER_EMAILS ?? ""): Set<string> {
+  return new Set(value.split(",").map(normalizeEmail).filter(Boolean));
 }
 
 /** The signed-in person, by their verified email. `null` when nobody is signed in. */
@@ -30,8 +30,7 @@ export async function getViewer(): Promise<Viewer | null> {
   if (!primary || primary.verification?.status !== "verified") return { kind: "noAccess", email: null };
   const email = normalizeEmail(primary.emailAddress);
   const db = await getDb();
-  const owner = ownerEmail();
-  if (owner && email === owner) {
+  if (managerEmails().has(email)) {
     const employeeId = await ensureOwner(db, email, user.firstName ?? "");
     return { kind: "manager", email, employeeId };
   }

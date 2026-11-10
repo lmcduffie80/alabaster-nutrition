@@ -104,7 +104,7 @@ export async function updateEmployee(db: Db, id: string, input: { displayName: s
   if (!current) throw new UserError("That employee no longer exists.");
   if (current.role === "manager" && email === null) throw new UserError("The manager needs an email to sign in.");
   if (current.role === "manager" && email !== current.email) {
-    throw new UserError("The manager's email is set in the app's settings on Vercel (OWNER_EMAIL).");
+    throw new UserError("Manager emails are set in the app's settings on Vercel (MANAGER_EMAILS).");
   }
   await assertNameFree(db, displayName, id);
   await assertEmailFree(db, email, id);
@@ -123,7 +123,7 @@ export async function setEmployeeActive(db: Db, id: string, active: boolean) {
     .where(eq(schema.employee.id, id));
 }
 
-/** Creates the owner's own employee record on first sign-in, so the owner can clock in too. */
+/** Creates a manager's own employee record on first sign-in, so managers can clock in too. */
 export async function ensureOwner(db: Db, email: string, displayName: string) {
   const normalized = normalizeEmail(email);
   const [existing] = await db.select({ id: schema.employee.id }).from(schema.employee).where(eq(schema.employee.email, normalized));
@@ -131,9 +131,15 @@ export async function ensureOwner(db: Db, email: string, displayName: string) {
     await db.update(schema.employee).set({ role: "manager", active: true }).where(eq(schema.employee.id, existing.id));
     return existing.id;
   }
+  const everyone = await listEmployees(db, { includeInactive: true });
   const [created] = await db
     .insert(schema.employee)
-    .values({ displayName: displayName.trim() || "Owner", email: normalized, role: "manager", colorIndex: 0 })
+    .values({
+      displayName: displayName.trim() || "Manager",
+      email: normalized,
+      role: "manager",
+      colorIndex: everyone.length % EMPLOYEE_COLOR_COUNT,
+    })
     .returning({ id: schema.employee.id });
   return created.id;
 }
