@@ -7,6 +7,10 @@ const actions = vi.hoisted(() => ({
   enterEmployeePin: vi.fn(),
   punch: vi.fn(),
   unlockManager: vi.fn(),
+  startCounting: vi.fn(),
+  stopCounting: vi.fn(async () => {}),
+  enterCount: vi.fn(),
+  finishCounting: vi.fn(),
 }));
 vi.mock("./actions", () => actions);
 
@@ -22,6 +26,7 @@ const view: KioskEmployeeView = {
   serverNow: 0,
   today: "7:00 AM – 1:00 PM · Opener",
   upcoming: [{ id: "s1", day: "Today", time: "7:00 AM – 1:00 PM", position: "Opener" }],
+  inventory: { canCount: true, countDue: true, inProgress: false },
 };
 
 async function typePin(pin: string) {
@@ -87,6 +92,81 @@ describe("Kiosk", () => {
     expect(router.push).not.toHaveBeenCalled();
     await typePin("9036");
     expect(router.push).toHaveBeenCalledWith("/manage");
+  });
+
+  it("opens the inventory count with the same PIN, and finishes with skipped items confirmed", async () => {
+    actions.enterEmployeePin.mockResolvedValue({ kind: "employee", view });
+    actions.startCounting.mockResolvedValue({
+      kind: "counting",
+      view: {
+        countId: "c1",
+        lines: [
+          { itemId: "i1", name: "Vanilla protein", unit: "tub", spotName: "Back room", lastCounted: 4, quantity: null, enteredBy: null },
+          { itemId: "i2", name: "Cups", unit: "sleeve", spotName: "Front counter", lastCounted: null, quantity: null, enteredBy: null },
+        ],
+      },
+    });
+    actions.enterCount.mockResolvedValue({ kind: "saved", quantity: 2.5 });
+    actions.finishCounting.mockResolvedValue({ kind: "finished", skipped: 1 });
+    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" />);
+
+    await typePin("4821");
+    expect(screen.getByText("Count due")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Count inventory/ }));
+    });
+    expect(actions.startCounting).toHaveBeenCalledWith("4821");
+    expect(screen.getByText("0 of 2 counted")).toBeTruthy();
+    expect(screen.getByText(/last count 4/)).toBeTruthy();
+
+    const input = screen.getByLabelText("Vanilla protein count");
+    fireEvent.change(input, { target: { value: "2.5" } });
+    await act(async () => {
+      fireEvent.blur(input);
+    });
+    expect(actions.enterCount).toHaveBeenCalledWith({ countId: "c1", itemId: "i1", quantity: "2.5" });
+    expect(screen.getByText("Saved")).toBeTruthy();
+    expect(screen.getByText("1 of 2 counted")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Finish count" }));
+    });
+    expect(actions.finishCounting).not.toHaveBeenCalled();
+    expect(screen.getByText(/Skip 1 item\?/)).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Skip and finish" }));
+    });
+    expect(actions.finishCounting).toHaveBeenCalledWith({ countId: "c1" });
+    expect(screen.getByText("Count finished · 1 skipped")).toBeTruthy();
+  });
+
+  it("keeps a count entry that didn't save and retries it", async () => {
+    actions.enterEmployeePin.mockResolvedValue({ kind: "employee", view });
+    actions.startCounting.mockResolvedValue({
+      kind: "counting",
+      view: {
+        countId: "c1",
+        lines: [{ itemId: "i1", name: "Vanilla protein", unit: "tub", spotName: "Back room", lastCounted: null, quantity: null, enteredBy: null }],
+      },
+    });
+    actions.enterCount.mockRejectedValueOnce(new TypeError("Failed to fetch")).mockResolvedValueOnce({ kind: "saved", quantity: 3 });
+    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" />);
+    await typePin("4821");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Count inventory/ }));
+    });
+
+    const input = screen.getByLabelText("Vanilla protein count") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.blur(input);
+    });
+    expect(input.value).toBe("3");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Not saved — tap to retry/ }));
+    });
+    expect(actions.enterCount).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Saved")).toBeTruthy();
   });
 
   it("goes back to the keypad after the idle time", async () => {

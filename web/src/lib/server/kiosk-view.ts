@@ -3,6 +3,7 @@ import type { Db } from "@/db";
 import { allowedPunches, buildShifts, type ClockStatus, type PunchKind } from "@/lib/domain/punches";
 import { addDays, formatDay, formatTime, localDateOf, startOfLocalDay } from "@/lib/domain/time";
 import { getBusiness } from "./business";
+import { inventorySummary } from "./inventory";
 import { currentShiftPunches } from "./punches";
 import { publishedShifts } from "./schedule";
 
@@ -16,6 +17,7 @@ export type KioskEmployeeView = {
   serverNow: number;
   today: string | null;
   upcoming: { id: string; day: string; time: string; position: string }[];
+  inventory: { canCount: boolean; countDue: boolean; inProgress: boolean };
 };
 
 /** What an employee sees on the kiosk after typing their PIN: no pay data, only their own shifts. */
@@ -33,6 +35,7 @@ export async function kioskEmployeeView(db: Db, employee: { id: string; displayN
   );
   const describe = (s: (typeof shifts)[number]) => `${formatTime(s.startsAt, timeZone)} – ${formatTime(s.endsAt, timeZone)}`;
   const todays = shifts.find((s) => localDateOf(s.startsAt, timeZone) === todayDate);
+  const inventory = await inventorySummary(db, now);
 
   return {
     displayName: employee.displayName,
@@ -46,5 +49,10 @@ export async function kioskEmployeeView(db: Db, employee: { id: string; displayN
       const date = localDateOf(s.startsAt, timeZone);
       return { id: s.id, day: date === todayDate ? "Today" : formatDay(date), time: describe(s), position: s.position };
     }),
+    inventory: {
+      canCount: inventory.itemCount > 0,
+      countDue: inventory.countDue,
+      inProgress: inventory.openCount !== null,
+    },
   };
 }

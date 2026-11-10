@@ -1,15 +1,18 @@
 "use client";
 
-import { Coffee, Delete, Lock, LogIn, LogOut, WifiOff } from "lucide-react";
+import { ClipboardList, Coffee, Delete, Lock, LogIn, LogOut, WifiOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Badge, Button, Card, FramedPanel, Wordmark } from "@/components/ui";
 import type { PunchKind } from "@/lib/domain/punches";
 import { formatTimer } from "@/lib/domain/time";
 import type { KioskEmployeeView } from "@/lib/server/kiosk-view";
-import { enterEmployeePin, punch, unlockManager, type PinResult } from "./actions";
+import { enterEmployeePin, punch, startCounting, stopCounting, unlockManager, type CountScreenView, type PinResult } from "./actions";
+import { CountScreen } from "./count-screen";
 
 const CONFIRM_MS = 3_000;
+const COUNTING_IDLE_MS = 5 * 60_000;
+const COUNT_EXPIRED_MESSAGE = "Counting timed out. Enter your PIN to keep going — nothing was lost.";
 const OFFLINE_MESSAGE = "No connection — nothing was saved. Check the Wi-Fi and try again.";
 
 type PadResult = Exclude<PinResult, { kind: "employee" }> | { kind: "ok" };
@@ -18,6 +21,7 @@ type Mode =
   | { kind: "keypad" }
   | { kind: "managerPad" }
   | { kind: "employee"; pin: string; view: KioskEmployeeView; loadedAt: number }
+  | { kind: "counting"; view: CountScreenView }
   | { kind: "message"; text: string; tone: "ok" | "error" };
 
 function secondsFromNow(seconds: number) {
@@ -43,15 +47,38 @@ export function Kiosk({ autoReturnSeconds, timeZone }: { autoReturnSeconds: numb
     const delay =
       mode.kind === "employee" || mode.kind === "managerPad"
         ? autoReturnSeconds * 1000
-        : mode.kind === "message"
-          ? CONFIRM_MS
-          : null;
+        : mode.kind === "counting"
+          ? COUNTING_IDLE_MS
+          : mode.kind === "message"
+            ? CONFIRM_MS
+            : null;
     if (delay === null) return;
-    const id = setTimeout(() => setMode({ kind: "keypad" }), delay);
+    const counting = mode.kind === "counting";
+    const id = setTimeout(() => {
+      if (counting) void stopCounting().catch(() => {});
+      setMode({ kind: "keypad" });
+    }, delay);
     return () => clearTimeout(id);
   }, [mode, activity, autoReturnSeconds]);
 
   const handleNotKiosk = () => router.refresh();
+
+  async function beginCount(pin: string) {
+    try {
+      const result = await startCounting(pin);
+      if (result.kind === "counting") setMode({ kind: "counting", view: result.view });
+      else if (result.kind === "error") setMode({ kind: "message", text: result.message, tone: "error" });
+      else if (result.kind === "notKiosk") handleNotKiosk();
+      else setMode({ kind: "keypad" });
+    } catch {
+      setMode({ kind: "message", text: OFFLINE_MESSAGE, tone: "error" });
+    }
+  }
+
+  function leaveCount() {
+    void stopCounting().catch(() => {});
+    setMode({ kind: "keypad" });
+  }
 
   return (
     <div className="h-full" onPointerDown={() => setActivity((a) => a + 1)}>
@@ -112,7 +139,16 @@ export function Kiosk({ autoReturnSeconds, timeZone }: { autoReturnSeconds: numb
               setMode({ kind: "message", text: OFFLINE_MESSAGE, tone: "error" });
             }
           }}
+          onCount={() => beginCount(mode.pin)}
           onDone={() => setMode({ kind: "keypad" })}
+        />
+      )}
+      {mode.kind === "counting" && (
+        <CountScreen
+          view={mode.view}
+          onLeave={leaveCount}
+          onFinished={(text) => setMode({ kind: "message", text, tone: "ok" })}
+          onExpired={() => setMode({ kind: "message", text: COUNT_EXPIRED_MESSAGE, tone: "error" })}
         />
       )}
       {mode.kind === "message" && (
@@ -236,12 +272,14 @@ function EmployeeScreen({
   loadedAt,
   autoReturnSeconds,
   onPunch,
+  onCount,
   onDone,
 }: {
   view: KioskEmployeeView;
   loadedAt: number;
   autoReturnSeconds: number;
   onPunch: (kind: PunchKind) => Promise<void>;
+  onCount: () => Promise<void>;
   onDone: () => void;
 }) {
   const now = useNow();
@@ -297,6 +335,22 @@ function EmployeeScreen({
           )}
         </div>
       </FramedPanel>
+
+      {view.inventory.canCount && (
+        <Button
+          variant={view.inventory.countDue ? "primary" : "secondary"}
+          disabled={busy}
+          className="mt-4 py-4 text-lg"
+          onClick={async () => {
+            setBusy(true);
+            await onCount();
+          }}
+        >
+          <ClipboardList className="size-5" />
+          {view.inventory.inProgress ? "Continue inventory count" : "Count inventory"}
+          {view.inventory.countDue && <Badge tone="gilt">Count due</Badge>}
+        </Button>
+      )}
 
       <p className="mb-2 mt-8 text-xs font-semibold uppercase tracking-wider text-ink/50">Your next 7 days</p>
       <Card className="divide-y divide-ink/5 p-0">
