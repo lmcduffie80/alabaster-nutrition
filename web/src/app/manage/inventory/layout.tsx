@@ -5,6 +5,7 @@ const tabs = [
   { href: "/manage/inventory/reorder", label: "Reorder list" },
   { href: "/manage/inventory/deliveries", label: "Deliveries" },
   { href: "/manage/inventory/counts", label: "Counts" },
+  { href: "/manage/inventory/reports", label: "Reports" },
   { href: "/manage/inventory/items", label: "Items" },
   { href: "/manage/inventory/suppliers", label: "Suppliers" },
 ];

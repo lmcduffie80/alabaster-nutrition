@@ -194,7 +194,11 @@ describe("inventory count on the kiosk", () => {
 
 describe("inventory manager actions", () => {
   it("refuse employees and anyone signed out, and work for the manager", async () => {
-    const { addSpotAction, addItemAction, cancelCountAction } = await import("./inventory-actions");
+    const { addSpotAction, addItemAction, cancelCountAction, fixCountLineAction } = await import("./inventory-actions");
+    const { GET: exportReport } = await import("./inventory/reports/export/route");
+    const { NextRequest } = await import("next/server");
+    const report = () => exportReport(new NextRequest("http://localhost/manage/inventory/reports/export?report=stock"));
+    expect((await report()).status).toBe(403);
     await expect(addSpotAction(null, form({ name: "Back room" }))).rejects.toThrow("REDIRECT /");
 
     state.user = { email: "owner@example.com" };
@@ -203,8 +207,13 @@ describe("inventory manager actions", () => {
     const [spot] = await inventory.listSpots(state.db);
     const item = { name: "Cups", type: "supply", unit: "sleeve", spotId: spot.id, supplierId: "", supplierCode: "", packSize: "", reorderAt: "1", orderUpTo: "4", defaultUnitCost: "" };
     expect((await addItemAction(null, form(item)))?.error).toBeUndefined();
+    const stock = await report();
+    expect(stock.headers.get("Content-Type")).toBe("text/csv; charset=utf-8");
+    expect(await stock.text()).toContain("Cups,Supply,Back room");
 
     state.user = { email: "ava@example.com" };
+    expect((await report()).status).toBe(403);
+    await expect(fixCountLineAction(null, form({ countId: spot.id, itemId: spot.id, quantity: "1", reason: "Typo" }))).rejects.toThrow("REDIRECT /");
     await expect(addSpotAction(null, form({ name: "Fridge" }))).rejects.toThrow("REDIRECT /");
     await expect(addItemAction(null, form({ ...item, name: "Lids" }))).rejects.toThrow("REDIRECT /");
     await expect(cancelCountAction(null, form({ countId: spot.id }))).rejects.toThrow("REDIRECT /");

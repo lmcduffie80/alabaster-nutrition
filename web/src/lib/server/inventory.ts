@@ -48,6 +48,8 @@ async function unique<T>(work: Promise<T>, message: string): Promise<T> {
 const uuid = z.uuid();
 const isId = (value: string) => uuid.safeParse(value).success;
 
+const reasonSchema = z.string().trim().min(1, "Enter a reason for the change.").max(200, "Keep the reason under 200 characters.");
+
 async function employeeNames(db: Db) {
   return new Map((await listEmployees(db, { includeInactive: true })).map((e) => [e.id, e.displayName]));
 }
@@ -243,7 +245,7 @@ export async function setItemActive(db: Db, id: string, active: boolean) {
 // Counts
 
 /** Each item's most recent counted quantity on a finished count. */
-async function lastCounts(db: Db) {
+export async function lastCounts(db: Db) {
   const rows = await db
     .selectDistinctOn([inventoryCountLine.itemId], {
       itemId: inventoryCountLine.itemId,
@@ -386,6 +388,61 @@ export async function finishCount(db: Db, input: { countId: string; employeeId: 
     .set({ status: "finished", finishedAt: input.now, finishedBy: input.employeeId })
     .where(and(eq(inventoryCount.id, input.countId), eq(inventoryCount.status, "open")));
   return { skipped };
+}
+
+/** A manager's correction to a finished count; on hand and usage follow from it. */
+export async function fixCountLine(
+  db: Db,
+  input: { countId: string; itemId: string; quantity: string; reason: string; actor: string; now: Date },
+) {
+  const reason = parse(reasonSchema, input.reason);
+  let quantity: number | null;
+  try {
+    quantity = parseQuantity(input.quantity);
+  } catch {
+    throw new UserError("Enter a number like 3 or 2.5, or leave it blank for not counted.");
+  }
+  if (!isId(input.countId) || !isId(input.itemId)) throw new UserError("That count no longer exists.");
+  const [count] = await db.select({ status: inventoryCount.status }).from(inventoryCount).where(eq(inventoryCount.id, input.countId));
+  if (count?.status !== "finished") throw new UserError("Only finished counts can be fixed here.");
+  const [line] = await db
+    .select({ quantity: inventoryCountLine.quantity })
+    .from(inventoryCountLine)
+    .where(and(eq(inventoryCountLine.countId, input.countId), eq(inventoryCountLine.itemId, input.itemId)));
+  if (!line) throw new UserError("That item isn't on this count.");
+  if (line.quantity === quantity) return;
+  await db.transaction(async (tx) => {
+    await tx
+      .update(inventoryCountLine)
+      .set({ quantity })
+      .where(and(eq(inventoryCountLine.countId, input.countId), eq(inventoryCountLine.itemId, input.itemId)));
+    await tx.insert(inventoryAudit).values({
+      entity: "count_line",
+      entityId: input.countId,
+      action: "fix",
+      before: { itemId: input.itemId, quantity: line.quantity },
+      after: { itemId: input.itemId, quantity },
+      reason,
+      actor: input.actor,
+      at: input.now,
+    });
+  });
+}
+
+export type CountFix = { itemId: string; before: number | null; after: number | null; reason: string; actor: string; at: Date };
+
+export async function countFixes(db: Db, countId: string): Promise<CountFix[]> {
+  if (!isId(countId)) return [];
+  const rows = await db
+    .select()
+    .from(inventoryAudit)
+    .where(and(eq(inventoryAudit.entity, "count_line"), eq(inventoryAudit.entityId, countId)))
+    .orderBy(asc(inventoryAudit.at));
+  return rows.map((r) => {
+    const before = r.before as { itemId: string; quantity: number | null };
+    const after = r.after as { quantity: number | null };
+    return { itemId: before.itemId, before: before.quantity, after: after.quantity, reason: r.reason, actor: r.actor, at: r.at };
+  });
 }
 
 export async function cancelCount(db: Db, countId: string, now: Date) {
@@ -548,8 +605,6 @@ export async function recordDelivery(db: Db, input: DeliveryInput, who: { actor:
   );
 }
 
-const reasonSchema = z.string().trim().min(1, "Enter a reason for the change.").max(200, "Keep the reason under 200 characters.");
-
 async function deliverySnapshot(db: Db, id: string) {
   if (!isId(id)) return null;
   const [header] = await db
@@ -686,7 +741,7 @@ export type StockRow = Item & {
   value: number | null;
 };
 
-async function liveDeliveryLines(db: Db) {
+export async function liveDeliveryLines(db: Db) {
   return db
     .select({
       itemId: deliveryLine.itemId,

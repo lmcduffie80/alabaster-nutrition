@@ -71,6 +71,61 @@ export function formatMoney(value: number | null) {
   return value === null ? "—" : dollars.format(value);
 }
 
+export type FinishedCount = { id: string; countedOn: LocalDate; quantities: Map<string, number | null> };
+export type ReceivedLine = { itemId: string; quantity: number; receivedOn: LocalDate; onShelfForCount: boolean };
+export type UsagePeriod = {
+  fromCountId: string;
+  toCountId: string;
+  from: LocalDate;
+  to: LocalDate;
+  /** Per item on both counts: start, received, end, used. `used` is null when either count skipped it. */
+  lines: Map<string, { start: number | null; received: number; end: number | null; used: number | null }>;
+};
+
+/**
+ * Usage between each pair of consecutive finished counts (oldest first):
+ * what was there at the start, plus what arrived in between, minus what was left.
+ */
+export function usagePeriods(counts: FinishedCount[], deliveries: ReceivedLine[]): UsagePeriod[] {
+  const periods: UsagePeriod[] = [];
+  for (let i = 1; i < counts.length; i++) {
+    const before = counts[i - 1];
+    const after = counts[i];
+    const received = new Map<string, number>();
+    for (const line of deliveries) {
+      const inBetween =
+        deliveryCounts(line.receivedOn, line.onShelfForCount, before.countedOn) &&
+        !deliveryCounts(line.receivedOn, line.onShelfForCount, after.countedOn);
+      if (inBetween) received.set(line.itemId, (received.get(line.itemId) ?? 0) + line.quantity);
+    }
+    const lines: UsagePeriod["lines"] = new Map();
+    for (const itemId of new Set([...before.quantities.keys(), ...after.quantities.keys()])) {
+      const start = before.quantities.get(itemId) ?? null;
+      const end = after.quantities.get(itemId) ?? null;
+      const got = round2(received.get(itemId) ?? 0);
+      lines.set(itemId, { start, received: got, end, used: start === null || end === null ? null : round2(start + got - end) });
+    }
+    periods.push({ fromCountId: before.id, toCountId: after.id, from: before.countedOn, to: after.countedOn, lines });
+  }
+  return periods;
+}
+
+export const HIGH_USAGE_FACTOR = 1.5;
+export const USAGE_HISTORY = 4;
+
+/**
+ * "mismatch": more on the shelf than could be there. "high": over 1.5× the average of the item's
+ * last four periods with a usage (skipped and mismatched periods don't count).
+ */
+export function usageFlag(used: number | null, previous: (number | null)[]): "mismatch" | "high" | null {
+  if (used === null) return null;
+  if (used < 0) return "mismatch";
+  const history = previous.filter((u): u is number => u !== null && u >= 0).slice(-USAGE_HISTORY);
+  if (history.length < USAGE_HISTORY) return null;
+  const average = history.reduce((sum, u) => sum + u, 0) / history.length;
+  return average > 0 && used > HIGH_USAGE_FACTOR * average ? "high" : null;
+}
+
 export function round2(value: number) {
   return Math.round(value * 100) / 100;
 }

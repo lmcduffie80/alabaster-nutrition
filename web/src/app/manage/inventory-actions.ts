@@ -5,6 +5,7 @@ import {
   addSpot,
   addSupplier,
   cancelCount,
+  fixCountLine,
   moveSpot,
   removeSpot,
   renameSpot,
@@ -150,6 +151,20 @@ export async function cancelCountAction(_: FormState, form: FormData) {
   return managerForm(form, async (_m, db) => {
     await cancelCount(db, text(form, "countId"), new Date());
     return { success: "Count cancelled. The next count starts fresh." };
+  }, { paths });
+}
+
+export async function fixCountLineAction(_: FormState, form: FormData) {
+  return managerForm(form, async (manager, db) => {
+    await fixCountLine(db, {
+      countId: text(form, "countId"),
+      itemId: text(form, "itemId"),
+      quantity: text(form, "quantity"),
+      reason: text(form, "reason"),
+      actor: manager.actor,
+      now: new Date(),
+    });
+    return { success: "Fixed." };
   }, { paths });
 }
 

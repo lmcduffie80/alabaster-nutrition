@@ -1,3 +1,4 @@
+import { toCsv } from "./csv";
 import { buildShifts, isMissingClockOut, type EffectivePunch, type WorkShift } from "./punches";
 import { formatTime, localDateOf, type LocalRange } from "./time";
 
@@ -45,13 +46,6 @@ export function timesheetRow(
   };
 }
 
-function csvCell(value: string | number) {
-  let text = String(value);
-  // Spreadsheet apps run cells starting with these as formulas.
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
-  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
 function hours(ms: number) {
   return (ms / 3_600_000).toFixed(2);
 }
@@ -78,7 +72,7 @@ export function timesheetCsv(
       ]);
     }
   }
-  return lines.map((line) => line.map(csvCell).join(",")).join("\r\n") + "\r\n";
+  return toCsv(lines);
 }
 
 export function timesheetTotalsCsv(
@@ -95,5 +89,5 @@ export function timesheetTotalsCsv(
       approved.has(row.employeeId) ? "yes" : "no",
     ]);
   }
-  return lines.map((line) => line.map(csvCell).join(",")).join("\r\n") + "\r\n";
+  return toCsv(lines);
 }

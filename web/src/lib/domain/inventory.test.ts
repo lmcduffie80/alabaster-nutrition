@@ -11,6 +11,8 @@ import {
   reorderAmount,
   stockValue,
   unitCost,
+  usageFlag,
+  usagePeriods,
 } from "./inventory";
 
 const tz = "America/New_York";
@@ -123,5 +125,41 @@ describe("deliveries and costs", () => {
     expect(() => parseMoney("-3")).toThrow();
     expect(formatMoney(1234.5)).toBe("$1,234.50");
     expect(formatMoney(null)).toBe("—");
+  });
+});
+
+describe("usage", () => {
+  const count = (id: string, countedOn: string, quantities: Record<string, number | null>) => ({
+    id,
+    countedOn,
+    quantities: new Map(Object.entries(quantities)),
+  });
+
+  it("is start + received in between − end, with same-day deliveries going to the right count", () => {
+    const counts = [count("a", "2026-11-01", { tubs: 4, cups: 10 }), count("b", "2026-11-08", { tubs: 3, cups: null })];
+    const deliveries = [
+      { itemId: "tubs", quantity: 6, receivedOn: "2026-11-01", onShelfForCount: true }, // already in count a
+      { itemId: "tubs", quantity: 5, receivedOn: "2026-11-01", onShelfForCount: false }, // after count a
+      { itemId: "tubs", quantity: 2, receivedOn: "2026-11-05", onShelfForCount: false },
+      { itemId: "tubs", quantity: 7, receivedOn: "2026-11-08", onShelfForCount: true }, // on the shelf for count b
+      { itemId: "tubs", quantity: 9, receivedOn: "2026-11-08", onShelfForCount: false }, // after count b
+    ];
+    const [period] = usagePeriods(counts, deliveries);
+    expect(period).toMatchObject({ fromCountId: "a", toCountId: "b", from: "2026-11-01", to: "2026-11-08" });
+    expect(period.lines.get("tubs")).toEqual({ start: 4, received: 14, end: 3, used: 15 });
+    expect(period.lines.get("cups")).toEqual({ start: 10, received: 0, end: null, used: null });
+    expect(usagePeriods(counts.slice(0, 1), deliveries)).toEqual([]);
+  });
+
+  it("flags impossible counts, and usage well above the last four periods", () => {
+    expect(usageFlag(-1, [])).toBe("mismatch");
+    expect(usageFlag(null, [1, 1, 1, 1])).toBeNull();
+    expect(usageFlag(9, [4, 4, 4])).toBeNull();
+    expect(usageFlag(6, [4, 4, 4, 4])).toBeNull();
+    expect(usageFlag(6.5, [4, 4, 4, 4])).toBe("high");
+    expect(usageFlag(6.5, [100, 4, 4, 4, 4])).toBe("high");
+    // Skipped periods don't count toward the four.
+    expect(usageFlag(6.5, [4, null, 4, 4, 4])).toBe("high");
+    expect(usageFlag(6.5, [null, 4, 4, 4])).toBeNull();
   });
 });
