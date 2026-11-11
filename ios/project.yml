@@ -1,0 +1,52 @@
+name: Alabaster
+options:
+  bundleIdPrefix: com.alabasternutrition
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  base:
+    DEVELOPMENT_TEAM: V734A7NXTX
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Alabaster:
+    type: application
+    platform: iOS
+    sources: [Alabaster]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.alabasternutrition.app
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
+    info:
+      path: Alabaster/Info.plist
+      properties:
+        CFBundleDisplayName: Alabaster
+        ITSAppUsesNonExemptEncryption: false
+        NSCameraUsageDescription: Alabaster uses the camera to photograph invoices and scan barcodes.
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+          UIImageName: LaunchMark
+          UIImageRespectsSafeAreaInsets: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+    scheme:
+      testTargets: [AlabasterTests]
+  AlabasterTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [AlabasterTests]
+    dependencies:
+      - target: Alabaster
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.alabasternutrition.app.tests
+        GENERATE_INFOPLIST_FILE: YES
