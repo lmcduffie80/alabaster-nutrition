@@ -7,7 +7,7 @@ import { getBusiness, updateBusinessSettings } from "@/lib/server/business";
 import { UserError } from "@/lib/server/errors";
 import { enrollKiosk, revokeKiosk } from "@/lib/server/kiosk";
 import { addManagerPunch, editPunchTime, getPunch, removePunch } from "@/lib/server/punches";
-import { addShift, deleteShift, publishWeek, unpublishWeek } from "@/lib/server/schedule";
+import { addShift, deleteShift, publishWeek, setCalledIn, unpublishWeek } from "@/lib/server/schedule";
 import { endKioskManagerSession, setKioskCookie, withManager } from "@/lib/server/session";
 import {
   addEmployee,
@@ -100,9 +100,19 @@ export async function updateSettingsAction(_: FormState, form: FormData) {
     if (!Number.isInteger(autoReturn) || autoReturn < 5 || autoReturn > 60) {
       throw new UserError("The kiosk must return to the keypad within 5 to 60 seconds.");
     }
+    const lateGrace = Number(text(form, "lateGraceMinutes"));
+    if (!Number.isInteger(lateGrace) || lateGrace < 0 || lateGrace > 60) {
+      throw new UserError("The late grace period must be between 0 and 60 minutes.");
+    }
     const countWeekday = Number(text(form, "countWeekday"));
     if (!Number.isInteger(countWeekday) || countWeekday < 0 || countWeekday > 6) throw new UserError("Choose the count day.");
-    await updateBusinessSettings(db, { name, missingClockOutHours: missing, kioskAutoReturnSeconds: autoReturn, countWeekday });
+    await updateBusinessSettings(db, {
+      name,
+      missingClockOutHours: missing,
+      lateGraceMinutes: lateGrace,
+      kioskAutoReturnSeconds: autoReturn,
+      countWeekday,
+    });
     return { success: "Settings saved." };
   });
 }
@@ -146,6 +156,14 @@ export async function addShiftAction(_: FormState, form: FormData) {
 export async function deleteShiftAction(_: FormState, form: FormData) {
   return managerForm(form, async (_m, db) => {
     await deleteShift(db, text(form, "id"));
+  });
+}
+
+export async function calledInAction(_: FormState, form: FormData) {
+  return managerForm(form, async (manager, db) => {
+    const calledIn = text(form, "calledIn") === "true";
+    await setCalledIn(db, { shiftId: text(form, "shiftId"), calledIn, note: text(form, "note"), by: manager.actor, now: new Date() });
+    return { success: calledIn ? "Marked as called in." : "Call-in cleared." };
   });
 }
 

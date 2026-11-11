@@ -14,7 +14,7 @@ export async function getBusiness(db: Db): Promise<Business> {
   return rows[0];
 }
 
-export type BusinessSettings = Pick<Business, "name" | "missingClockOutHours" | "kioskAutoReturnSeconds" | "countWeekday">;
+export type BusinessSettings = Pick<Business, "name" | "missingClockOutHours" | "lateGraceMinutes" | "kioskAutoReturnSeconds" | "countWeekday">;
 
 export async function updateBusinessSettings(db: Db, settings: BusinessSettings) {
   const { id } = await getBusiness(db);

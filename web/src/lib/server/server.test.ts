@@ -4,12 +4,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db";
 import { openBusinessDatabase } from "@/test/businesses";
 import { schema } from "@/db";
-import { getBusiness } from "./business";
+import { attendanceReport } from "./attendance";
+import { getBusiness, updateBusinessSettings } from "./business";
 import { UserError } from "./errors";
 import { checkKioskPin, enrollKiosk, revokeKiosk } from "./kiosk";
 import { kioskByToken } from "./system";
 import { addManagerPunch, clockStatus, editPunchTime, punchHistory, recordKioskPunch, removePunch } from "./punches";
-import { addShift, publishedShifts, publishWeek, weekSchedule } from "./schedule";
+import { addShift, publishedShifts, publishWeek, setCalledIn, weekSchedule } from "./schedule";
 import {
   addEmployee,
   assignRandomPin,
@@ -229,6 +230,39 @@ describe("timesheets", () => {
     expect(sheet.period).toMatchObject({ start: "2026-11-02", end: "2026-11-09" });
     expect(sheet.isCurrent).toBe(false);
     expect(sheet.rows).toHaveLength(0);
+  });
+});
+
+describe("attendance report", () => {
+  it("shows hours, late clock-ins, and call-ins for the pay period", async () => {
+    const { device } = await enrollKiosk(db, "Counter iPad");
+    const ava = await addEmployee(db, { displayName: "Ava", email: "" });
+    // Mon and Tue 7 AM–1 PM New York; Ava clocks in 12 minutes late Monday and calls in Tuesday.
+    await addShift(db, { employeeId: ava, date: "2026-11-09", startMinutes: 7 * 60, endMinutes: 13 * 60, position: "" });
+    await addShift(db, { employeeId: ava, date: "2026-11-10", startMinutes: 7 * 60, endMinutes: 13 * 60, position: "" });
+    const punch = (kind: "clockIn" | "clockOut", iso: string) =>
+      recordKioskPunch(db, { employeeId: ava, kind, requestId: randomUUID(), kioskDeviceId: device.id, now: new Date(iso) });
+    await punch("clockIn", "2026-11-09T12:12:00Z");
+    await punch("clockOut", "2026-11-09T18:00:00Z");
+
+    const tuesday = (await weekSchedule(db, "2026-11-09")).shifts[1];
+    await rejects(setCalledIn(db, { shiftId: "nope", calledIn: true, note: "", by: "owner", now: monday }), /no longer exists/);
+    await setCalledIn(db, { shiftId: tuesday.id, calledIn: true, note: " Sick ", by: "owner", now: monday });
+
+    const later = new Date("2026-11-13T20:00:00Z");
+    let report = await attendanceReport(db, later);
+    const row = report.rows.find((r) => r.employee.id === ava)!;
+    expect(row.workedMs).toBe((5 * 60 + 48) * 60_000);
+    expect(row.entries.map((e) => [e.status, e.minutesLate, e.shift.calledInNote])).toEqual([
+      ["late", 12, ""],
+      ["calledIn", null, "Sick"],
+    ]);
+    expect(row.summary).toEqual({ scheduled: 2, late: 1, minutesLate: 12, calledIn: 1, noClockIn: 0 });
+
+    await setCalledIn(db, { shiftId: tuesday.id, calledIn: false, note: "", by: "owner", now: monday });
+    await updateBusinessSettings(db, { name: "Alabaster Nutrition", missingClockOutHours: 12, lateGraceMinutes: 15, kioskAutoReturnSeconds: 10, countWeekday: 0 });
+    report = await attendanceReport(db, later);
+    expect(report.rows[0].entries.map((e) => e.status)).toEqual(["onTime", "noClockIn"]);
   });
 });
 

@@ -22,7 +22,7 @@ export default async function ManageLayout({ children }: LayoutProps<"/manage">)
   const { name } = await withManager(getBusiness);
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <nav className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-ink/10 bg-white/80 p-2 md:w-44 md:flex-col md:items-stretch md:border-b-0 md:border-r md:p-3 md:pt-8">
+      <nav className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-ink/10 bg-white/80 p-2 md:w-44 md:flex-col md:items-stretch md:border-b-0 md:border-r md:p-3 md:pt-8 print:hidden">
         <div className="mr-2 md:mb-4 md:mr-0">
           <Wordmark business={name} />
         </div>
@@ -43,7 +43,7 @@ export default async function ManageLayout({ children }: LayoutProps<"/manage">)
           )}
         </div>
       </nav>
-      <main className="flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
+      <main className="flex-1 px-4 py-6 md:px-8 md:py-8 print:p-0">{children}</main>
     </div>
   );
 }

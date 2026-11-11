@@ -104,6 +104,9 @@ export default async function SettingsPage() {
             <Field label="Missing clock-out warning (hours)" hint="Flag a shift still open after this long.">
               <input name="missingClockOutHours" type="number" min={4} max={24} defaultValue={business.missingClockOutHours} className={inputClass} />
             </Field>
+            <Field label="Late after (minutes)" hint="A clock-in more than this long after the scheduled start shows as late.">
+              <input name="lateGraceMinutes" type="number" min={0} max={60} defaultValue={business.lateGraceMinutes} className={inputClass} />
+            </Field>
             <Field label="Kiosk returns to keypad after (seconds)" hint="How long an employee's screen stays up.">
               <input name="kioskAutoReturnSeconds" type="number" min={5} max={60} defaultValue={business.kioskAutoReturnSeconds} className={inputClass} />
             </Field>

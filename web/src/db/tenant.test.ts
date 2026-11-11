@@ -68,7 +68,7 @@ describe("walls between businesses", () => {
 
   it("settings changes stay in their own business", async () => {
     const two = await asTwo(getBusiness);
-    await asOne((tx) => updateBusinessSettings(tx, { name: "Alabaster", missingClockOutHours: 10, kioskAutoReturnSeconds: 10, countWeekday: 1 }));
+    await asOne((tx) => updateBusinessSettings(tx, { name: "Alabaster", missingClockOutHours: 10, lateGraceMinutes: 5, kioskAutoReturnSeconds: 10, countWeekday: 1 }));
     expect(await asTwo(getBusiness)).toEqual(two);
     await expect(asOne((tx) => tx.update(schema.business).set({ name: "Hijacked" }).where(eq(schema.business.id, 2)).returning())).resolves.toEqual([]);
   });

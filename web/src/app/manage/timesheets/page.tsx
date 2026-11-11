@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Download, Printer } from "lucide-react";
 import Link from "next/link";
 import { Badge, Card, ColorDot, employeeColor, Field, inputClass, SectionTitle } from "@/components/ui";
 import { punchKinds, punchLabel, type EffectivePunch } from "@/lib/domain/punches";
@@ -40,7 +40,13 @@ export default async function TimesheetsPage({ searchParams }: PageProps<"/manag
               {sheet.isCurrent ? <Badge tone="porcelain">Current period</Badge> : <Link href="?" className="text-xs text-porcelain hover:underline">Current period</Link>}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/manage/timesheets/report?period=${period.start}`}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-porcelain/30 bg-white px-3 py-2 text-sm font-semibold text-porcelain hover:bg-porcelain-light"
+            >
+              <Printer className="size-4" /> Attendance report
+            </Link>
             <a
               href={`/manage/timesheets/export?period=${period.start}&type=totals`}
               className="inline-flex items-center gap-1.5 rounded-xl bg-porcelain px-3 py-2 text-sm font-semibold text-white hover:bg-porcelain-dark"

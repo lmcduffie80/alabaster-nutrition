@@ -101,6 +101,7 @@ export default async function SchedulePage({ searchParams }: PageProps<"/manage/
                             <span>
                               {formatTime(s.startsAt, timeZone)} – {formatTime(s.endsAt, timeZone)}
                               {s.position && <span className="block opacity-80">{s.position}</span>}
+                              {s.calledInAt && <span className="block font-semibold">Called in</span>}
                             </span>
                             <ActionForm action={deleteShiftAction}>
                               <input type="hidden" name="id" value={s.id} />

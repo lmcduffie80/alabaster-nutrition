@@ -32,6 +32,8 @@ export const business = pgTable("business", {
   payPeriodAnchor: date("pay_period_anchor", { mode: "string" }).notNull(),
   payPeriodDays: integer("pay_period_days").notNull().default(7),
   missingClockOutHours: integer("missing_clock_out_hours").notNull().default(12),
+  /** A clock-in more than this many minutes after the scheduled start counts as late. */
+  lateGraceMinutes: integer("late_grace_minutes").notNull().default(5),
   kioskAutoReturnSeconds: integer("kiosk_auto_return_seconds").notNull().default(10),
   managerPinDigest: text("manager_pin_digest"),
   /** 0 = Sunday … 6 = Saturday. The weekly inventory count is due from the start of this day. */
@@ -168,6 +170,10 @@ export const shift = pgTable(
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     position: text("position").notNull().default(""),
+    /** Set by a manager when the employee called in instead of working this shift. */
+    calledInAt: timestamp("called_in_at", { withTimezone: true }),
+    calledInNote: text("called_in_note").notNull().default(""),
+    calledInBy: text("called_in_by"),
     createdAt: createdAt(),
   },
   (t) => [

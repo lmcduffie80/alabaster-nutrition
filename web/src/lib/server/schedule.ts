@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, eq, gte, inArray, isNotNull, lt } from "drizzle-orm";
+import { z } from "zod";
 import { schema, type Db } from "@/db";
 import { instantAt, isLocalDate, weekStartOf, type LocalDate } from "@/lib/domain/time";
 import { getBusiness } from "./business";
@@ -12,6 +13,8 @@ export type ScheduledShift = {
   startsAt: Date;
   endsAt: Date;
   position: string;
+  calledInAt: Date | null;
+  calledInNote: string;
 };
 
 const shiftColumns = {
@@ -21,6 +24,8 @@ const shiftColumns = {
   startsAt: schema.shift.startsAt,
   endsAt: schema.shift.endsAt,
   position: schema.shift.position,
+  calledInAt: schema.shift.calledInAt,
+  calledInNote: schema.shift.calledInNote,
 };
 
 export type ShiftInput = {
@@ -72,6 +77,18 @@ export async function updateShift(db: Db, id: string, input: ShiftInput) {
 
 export async function deleteShift(db: Db, id: string) {
   await db.delete(schema.shift).where(eq(schema.shift.id, id));
+}
+
+/** Marks (or clears) that the employee called in instead of working this shift. */
+export async function setCalledIn(db: Db, input: { shiftId: string; calledIn: boolean; note: string; by: string; now: Date }) {
+  if (!z.uuid().safeParse(input.shiftId).success) throw new UserError("That shift no longer exists.");
+  const note = input.note.trim();
+  if (note.length > 200) throw new UserError("Keep the note under 200 characters.");
+  const values = input.calledIn
+    ? { calledInAt: input.now, calledInNote: note, calledInBy: input.by }
+    : { calledInAt: null, calledInNote: "", calledInBy: null };
+  const updated = await db.update(schema.shift).set(values).where(eq(schema.shift.id, input.shiftId)).returning({ id: schema.shift.id });
+  if (updated.length === 0) throw new UserError("That shift no longer exists.");
 }
 
 export async function weekSchedule(db: Db, weekStart: LocalDate) {
