@@ -80,7 +80,7 @@ Diagnostics, Purchases, or Sensitive Info.
 - **Sign-in required**: Yes.
   - User name: `lee+appreview@innovative-cc.com`
   - Password: the demo account's password.
-- **Contact**: Donald McDuffie, lee@innovative-cc.com, your phone number.
+- **Contact**: Donald McDuffie, shop@alabasternutrition.com, your phone number.
 - **Notes**:
 
   > Metzey is a business tool for small shops: a store time clock, staff schedules, timesheets, and inventory.
