@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@/db";
-import { openLocalDatabase } from "@/db/local";
+import { openBusinessDatabase } from "@/test/businesses";
 import { schema } from "@/db";
 
 const state = vi.hoisted(() => ({
@@ -43,6 +43,9 @@ vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`REDIRECT ${to}`);
   },
+  unstable_rethrow: (error: unknown) => {
+    if (error instanceof Error && error.message.startsWith("REDIRECT ")) throw error;
+  },
 }));
 
 const { addEmployeeAction, enrollKioskAction, setManagerPinAction } = await import("./actions");
@@ -57,7 +60,7 @@ function form(fields: Record<string, string>) {
 
 beforeEach(async () => {
   process.env.MANAGER_EMAILS = "owner@example.com, Second.Manager@Example.com";
-  state.db = await openLocalDatabase();
+  state.db = await openBusinessDatabase();
   state.user = null;
   state.cookies.clear();
   state.kept = [];
@@ -305,5 +308,41 @@ describe("scanning invoices", () => {
     state.user = { email: "owner@example.com" };
     expect(await quickAddSupplierAction("US Foods")).toMatchObject({ ok: true, value: { name: "US Foods" } });
     expect(await quickAddSupplierAction("us foods")).toMatchObject({ ok: false, error: /already/ });
+  });
+});
+
+const { asBusiness, withBusiness } = await import("@/db/tenant");
+const { createBusiness } = await import("@/lib/server/system");
+
+describe("more than one business", () => {
+  const namesIn = (businessId: number) =>
+    withBusiness(state.db, businessId, async (tx) => (await tx.select().from(schema.employee)).map((e) => e.displayName).sort());
+
+  beforeEach(async () => {
+    await asBusiness(state.db, null);
+    await createBusiness(state.db, { id: 2, name: "Other Cafe" });
+    await withBusiness(state.db, 2, (tx) =>
+      tx.insert(schema.employee).values({ displayName: "Cam", email: "cam@example.com", role: "manager" }),
+    );
+  });
+
+  it("a manager's changes land only in their own business", async () => {
+    state.user = { email: "cam@example.com" };
+    expect((await addEmployeeAction(null, form({ displayName: "Dee", email: "" })))?.error).toBeUndefined();
+    expect(await namesIn(2)).toEqual(["Cam", "Dee"]);
+    expect(await namesIn(1)).toEqual([]);
+  });
+
+  it("someone on two teams picks one, and can't pick a team they're not on", async () => {
+    await withBusiness(state.db, 1, (tx) => tx.insert(schema.employee).values({ displayName: "Cam", email: "cam@example.com" }));
+    state.user = { email: "cam@example.com" };
+    await expect(addEmployeeAction(null, form({ displayName: "Dee", email: "" }))).rejects.toThrow("REDIRECT /choose-business");
+
+    const { chooseBusinessAction } = await import("../choose-business/actions");
+    await expect(chooseBusinessAction(form({ businessId: "3" }))).rejects.toThrow("Not a member");
+    await expect(chooseBusinessAction(form({ businessId: "2" }))).rejects.toThrow("REDIRECT /");
+    expect((await addEmployeeAction(null, form({ displayName: "Dee", email: "" })))?.error).toBeUndefined();
+    expect(await namesIn(2)).toEqual(["Cam", "Dee"]);
+    expect(await namesIn(1)).toEqual(["Cam"]);
   });
 });

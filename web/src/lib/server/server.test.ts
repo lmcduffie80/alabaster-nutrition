@@ -2,11 +2,12 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db";
-import { openLocalDatabase } from "@/db/local";
+import { openBusinessDatabase } from "@/test/businesses";
 import { schema } from "@/db";
 import { getBusiness } from "./business";
 import { UserError } from "./errors";
-import { checkKioskPin, enrollKiosk, findKiosk, revokeKiosk } from "./kiosk";
+import { checkKioskPin, enrollKiosk, revokeKiosk } from "./kiosk";
+import { kioskByToken } from "./system";
 import { addManagerPunch, clockStatus, editPunchTime, punchHistory, recordKioskPunch, removePunch } from "./punches";
 import { addShift, publishedShifts, publishWeek, weekSchedule } from "./schedule";
 import {
@@ -26,8 +27,7 @@ let db: Db;
 const monday = new Date("2026-11-09T14:00:00Z"); // 9:00 AM in New York
 
 beforeEach(async () => {
-  db = await openLocalDatabase();
-  await getBusiness(db, monday);
+  db = await openBusinessDatabase(monday);
 });
 
 async function rejects(work: Promise<unknown>, message: RegExp) {
@@ -109,11 +109,11 @@ describe("kiosk", () => {
   it("only recognizes enrolled, unrevoked devices", async () => {
     const { device, token } = await enrollKiosk(db, "Counter iPad");
     expect(device.tokenDigest).not.toBe(token);
-    expect((await findKiosk(db, token))?.label).toBe("Counter iPad");
-    expect(await findKiosk(db, "made-up-token")).toBeNull();
-    expect(await findKiosk(db, undefined)).toBeNull();
+    expect((await kioskByToken(db, token))?.label).toBe("Counter iPad");
+    expect(await kioskByToken(db, "made-up-token")).toBeNull();
+    expect(await kioskByToken(db, undefined)).toBeNull();
     await revokeKiosk(db, device.id);
-    expect(await findKiosk(db, token)).toBeNull();
+    expect(await kioskByToken(db, token)).toBeNull();
   });
 
   it("checks employee and manager PINs separately and locks after five misses", async () => {

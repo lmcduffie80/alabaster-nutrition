@@ -207,6 +207,6 @@ export async function setManagerPin(db: Db, pin: string) {
     .from(schema.employee)
     .where(and(eq(schema.employee.pinDigest, digest), eq(schema.employee.active, true)));
   if (row) throw new UserError("The manager PIN must be different from every employee's PIN.");
-  await getBusiness(db);
-  await db.update(schema.business).set({ managerPinDigest: digest }).where(eq(schema.business.id, 1));
+  const { id } = await getBusiness(db);
+  await db.update(schema.business).set({ managerPinDigest: digest }).where(eq(schema.business.id, id));
 }

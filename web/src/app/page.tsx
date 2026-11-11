@@ -8,6 +8,7 @@ export default async function Home() {
   const viewer = await getViewer();
   if (viewer?.kind === "manager") redirect("/manage");
   if (viewer?.kind === "employee") redirect("/schedule");
+  if (viewer?.kind === "chooseBusiness") redirect("/choose-business");
   if (!viewer && (await currentKiosk())) redirect("/kiosk");
 
   return (

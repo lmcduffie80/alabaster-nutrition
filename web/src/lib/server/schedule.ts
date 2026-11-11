@@ -89,7 +89,7 @@ export async function publishWeek(db: Db, weekStart: LocalDate, now = new Date()
   await db
     .insert(schema.scheduleWeek)
     .values({ weekStart, publishedAt: now })
-    .onConflictDoUpdate({ target: schema.scheduleWeek.weekStart, set: { publishedAt: now } });
+    .onConflictDoUpdate({ target: [schema.scheduleWeek.businessId, schema.scheduleWeek.weekStart], set: { publishedAt: now } });
 }
 
 export async function unpublishWeek(db: Db, weekStart: LocalDate) {

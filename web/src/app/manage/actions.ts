@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { getDb } from "@/db";
 import { punchKinds, type PunchKind } from "@/lib/domain/punches";
 import { instantAt, isLocalDate } from "@/lib/domain/time";
 import { getBusiness, updateBusinessSettings } from "@/lib/server/business";
@@ -9,7 +8,7 @@ import { UserError } from "@/lib/server/errors";
 import { enrollKiosk, revokeKiosk } from "@/lib/server/kiosk";
 import { addManagerPunch, editPunchTime, getPunch, removePunch } from "@/lib/server/punches";
 import { addShift, deleteShift, publishWeek, unpublishWeek } from "@/lib/server/schedule";
-import { endKioskManagerSession, requireManagerAccount, setKioskCookie } from "@/lib/server/session";
+import { endKioskManagerSession, setKioskCookie, withManager } from "@/lib/server/session";
 import {
   addEmployee,
   assignRandomPin,
@@ -109,8 +108,7 @@ export async function updateSettingsAction(_: FormState, form: FormData) {
 }
 
 export async function enrollKioskAction(form: FormData) {
-  await requireManagerAccount();
-  const { token } = await enrollKiosk(await getDb(), text(form, "label"));
+  const { token } = await withManager((db) => enrollKiosk(db, text(form, "label")), { account: true });
   await setKioskCookie(token);
   redirect("/kiosk/ready");
 }

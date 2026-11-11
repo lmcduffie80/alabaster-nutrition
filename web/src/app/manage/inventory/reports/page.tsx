@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { Badge, Card, inputClass } from "@/components/ui";
-import { getDb } from "@/db";
 import { formatMoney, formatQuantity, itemTypeLabel, itemTypes, round2 } from "@/lib/domain/inventory";
 import { formatDay } from "@/lib/domain/time";
 import { stockRows } from "@/lib/server/inventory";
 import { spendingReport, usageReport, type SpendingBy } from "@/lib/server/inventory-reports";
-import { requireManager } from "@/lib/server/session";
+import { requireManager, withManager } from "@/lib/server/session";
 
 const views = [
   { id: "usage", label: "Usage" },
@@ -28,7 +27,6 @@ export default async function ReportsPage({ searchParams }: PageProps<"/manage/i
   await requireManager();
   const query = await searchParams;
   const view = views.find((v) => v.id === query.view)?.id ?? "usage";
-  const db = await getDb();
 
   return (
     <div>
@@ -39,17 +37,15 @@ export default async function ReportsPage({ searchParams }: PageProps<"/manage/i
           </Link>
         ))}
       </div>
-      {view === "usage" && <Usage db={db} period={typeof query.period === "string" ? query.period : undefined} />}
-      {view === "stock" && <StockValue db={db} />}
-      {view === "spending" && <Spending db={db} by={query.by === "month" ? "month" : "week"} />}
+      {view === "usage" && <Usage period={typeof query.period === "string" ? query.period : undefined} />}
+      {view === "stock" && <StockValue />}
+      {view === "spending" && <Spending by={query.by === "month" ? "month" : "week"} />}
     </div>
   );
 }
 
-type Db = Awaited<ReturnType<typeof getDb>>;
-
-async function Usage({ db, period }: { db: Db; period?: string }) {
-  const report = await usageReport(db, period);
+async function Usage({ period }: { period?: string }) {
+  const report = await withManager((db) => usageReport(db, period));
   if (!report.period) {
     return (
       <Card>
@@ -139,8 +135,8 @@ async function Usage({ db, period }: { db: Db; period?: string }) {
   );
 }
 
-async function StockValue({ db }: { db: Db }) {
-  const rows = await stockRows(db);
+async function StockValue() {
+  const rows = await withManager(stockRows);
   const groups = [...new Set(rows.map((r) => r.spotName))].map((spot) => {
     const inSpot = rows.filter((r) => r.spotName === spot);
     return {
@@ -203,8 +199,8 @@ async function StockValue({ db }: { db: Db }) {
   );
 }
 
-async function Spending({ db, by }: { db: Db; by: SpendingBy }) {
-  const buckets = await spendingReport(db, by, new Date());
+async function Spending({ by }: { by: SpendingBy }) {
+  const buckets = await withManager((db) => spendingReport(db, by, new Date()));
   const label = (start: string) =>
     by === "week" ? `Week of ${formatDay(start)}` : new Date(`${start}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
   return (

@@ -1,27 +1,24 @@
 import { UserButton } from "@clerk/nextjs";
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { Card, ColorDot, employeeColor, FramedPanel, SectionTitle, Wordmark } from "@/components/ui";
-import { getDb } from "@/db";
 import { addDays, formatDay, formatTime, localDateOf, startOfLocalDay, weekStartOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
 import { publishedShifts } from "@/lib/server/schedule";
-import { getViewer } from "@/lib/server/session";
+import { withMember } from "@/lib/server/session";
 import { listEmployees } from "@/lib/server/team";
 
 export const metadata: Metadata = { title: "My Schedule · Alabaster Nutrition" };
 
 export default async function EmployeeSchedulePage() {
-  const viewer = await getViewer();
-  if (viewer?.kind !== "employee" && viewer?.kind !== "manager") redirect("/");
-
-  const db = await getDb();
-  const { timeZone } = await getBusiness(db);
-  const today = localDateOf(new Date(), timeZone);
-  const weekStart = weekStartOf(today);
-  const end = addDays(weekStart, 14);
-  const shifts = await publishedShifts(db, { from: startOfLocalDay(today, timeZone), to: startOfLocalDay(end, timeZone) });
-  const team = new Map((await listEmployees(db, { includeInactive: true })).map((e) => [e.id, e]));
+  const { viewer, timeZone, today, weekStart, shifts, team } = await withMember(async (db, viewer) => {
+    const { timeZone } = await getBusiness(db);
+    const today = localDateOf(new Date(), timeZone);
+    const weekStart = weekStartOf(today);
+    const end = addDays(weekStart, 14);
+    const shifts = await publishedShifts(db, { from: startOfLocalDay(today, timeZone), to: startOfLocalDay(end, timeZone) });
+    const team = new Map((await listEmployees(db, { includeInactive: true })).map((e) => [e.id, e]));
+    return { viewer, timeZone, today, weekStart, shifts, team };
+  });
   const mine = shifts.filter((s) => s.employeeId === viewer.employeeId);
   const days = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i)).filter((d) => d >= today);
   const time = (s: (typeof shifts)[number]) => `${formatTime(s.startsAt, timeZone)} – ${formatTime(s.endsAt, timeZone)}`;

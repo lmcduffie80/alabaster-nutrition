@@ -1,86 +1,85 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Badge, Card, Field, inputClass, SectionTitle } from "@/components/ui";
-import { getDb } from "@/db";
 import { formatQuantity, itemTypeLabel, itemTypes } from "@/lib/domain/inventory";
 import { listItems, listSpots, listSuppliers, type Item, type Spot, type Supplier } from "@/lib/server/inventory";
-import { requireManager } from "@/lib/server/session";
+import { withManager } from "@/lib/server/session";
 import { ActionForm, SubmitButton } from "../../forms";
 import { addItemAction, addSpotAction, setItemActiveAction, updateItemAction, updateSpotAction } from "../../inventory-actions";
 
 export default async function ItemsPage() {
-  await requireManager();
-  const db = await getDb();
-  const [items, spots, suppliers] = await Promise.all([
-    listItems(db, { includeInactive: true }),
-    listSpots(db),
-    listSuppliers(db, { includeInactive: true }),
-  ]);
-  const active = items.filter((i) => i.active);
-  const former = items.filter((i) => !i.active);
+  return withManager(async (db) => {
+    const [items, spots, suppliers] = await Promise.all([
+      listItems(db, { includeInactive: true }),
+      listSpots(db),
+      listSuppliers(db, { includeInactive: true }),
+    ]);
+    const active = items.filter((i) => i.active);
+    const former = items.filter((i) => !i.active);
 
-  return (
-    <div>
-      <SectionTitle>Storage spots</SectionTitle>
-      <Card className="space-y-3">
-        <p className="text-sm text-ink/70">The count on the iPad walks through these in order, so list them the way you walk the store.</p>
-        {spots.length > 0 && (
-          <div className="divide-y divide-ink/5 rounded-xl border border-ink/10">
-            {spots.map((spot, index) => (
-              <SpotRow key={spot.id} spot={spot} first={index === 0} last={index === spots.length - 1} />
-            ))}
-          </div>
-        )}
-        <ActionForm action={addSpotAction} resetOnSuccess className="flex flex-wrap items-end gap-3">
-          <div className="min-w-48 flex-1">
-            <Field label="New spot">
-              <input name="name" required maxLength={40} placeholder="Back room, Fridge, Front counter…" className={inputClass} />
-            </Field>
-          </div>
-          <SubmitButton variant="secondary">Add spot</SubmitButton>
-        </ActionForm>
-      </Card>
-
-      <SectionTitle>Add an item</SectionTitle>
-      <Card>
-        {spots.length === 0 ? (
-          <p className="text-sm text-ink/60">Add a storage spot first.</p>
-        ) : (
-          <ActionForm action={addItemAction} resetOnSuccess>
-            <ItemFields spots={spots} suppliers={suppliers} />
-            <div className="mt-3">
-              <SubmitButton>Add item</SubmitButton>
+    return (
+      <div>
+        <SectionTitle>Storage spots</SectionTitle>
+        <Card className="space-y-3">
+          <p className="text-sm text-ink/70">The count on the iPad walks through these in order, so list them the way you walk the store.</p>
+          {spots.length > 0 && (
+            <div className="divide-y divide-ink/5 rounded-xl border border-ink/10">
+              {spots.map((spot, index) => (
+                <SpotRow key={spot.id} spot={spot} first={index === 0} last={index === spots.length - 1} />
+              ))}
             </div>
+          )}
+          <ActionForm action={addSpotAction} resetOnSuccess className="flex flex-wrap items-end gap-3">
+            <div className="min-w-48 flex-1">
+              <Field label="New spot">
+                <input name="name" required maxLength={40} placeholder="Back room, Fridge, Front counter…" className={inputClass} />
+              </Field>
+            </div>
+            <SubmitButton variant="secondary">Add spot</SubmitButton>
           </ActionForm>
-        )}
-      </Card>
+        </Card>
 
-      <SectionTitle>Items ({active.length})</SectionTitle>
-      <div className="space-y-2">
-        {active.length === 0 && <p className="text-sm text-ink/50">No items yet.</p>}
-        {active.map((item) => (
-          <ItemCard key={item.id} item={item} spots={spots} suppliers={suppliers} />
-        ))}
-      </div>
-
-      {former.length > 0 && (
-        <>
-          <SectionTitle>Former items</SectionTitle>
-          <Card className="divide-y divide-ink/5 p-0">
-            {former.map((item) => (
-              <div key={item.id} className="flex items-center justify-between px-4 py-2 text-sm">
-                <span className="text-ink/70">{item.name}</span>
-                <ActionForm action={setItemActiveAction}>
-                  <input type="hidden" name="id" value={item.id} />
-                  <input type="hidden" name="active" value="true" />
-                  <SubmitButton variant="quiet">Reactivate</SubmitButton>
-                </ActionForm>
+        <SectionTitle>Add an item</SectionTitle>
+        <Card>
+          {spots.length === 0 ? (
+            <p className="text-sm text-ink/60">Add a storage spot first.</p>
+          ) : (
+            <ActionForm action={addItemAction} resetOnSuccess>
+              <ItemFields spots={spots} suppliers={suppliers} />
+              <div className="mt-3">
+                <SubmitButton>Add item</SubmitButton>
               </div>
-            ))}
-          </Card>
-        </>
-      )}
-    </div>
-  );
+            </ActionForm>
+          )}
+        </Card>
+
+        <SectionTitle>Items ({active.length})</SectionTitle>
+        <div className="space-y-2">
+          {active.length === 0 && <p className="text-sm text-ink/50">No items yet.</p>}
+          {active.map((item) => (
+            <ItemCard key={item.id} item={item} spots={spots} suppliers={suppliers} />
+          ))}
+        </div>
+
+        {former.length > 0 && (
+          <>
+            <SectionTitle>Former items</SectionTitle>
+            <Card className="divide-y divide-ink/5 p-0">
+              {former.map((item) => (
+                <div key={item.id} className="flex items-center justify-between px-4 py-2 text-sm">
+                  <span className="text-ink/70">{item.name}</span>
+                  <ActionForm action={setItemActiveAction}>
+                    <input type="hidden" name="id" value={item.id} />
+                    <input type="hidden" name="active" value="true" />
+                    <SubmitButton variant="quiet">Reactivate</SubmitButton>
+                  </ActionForm>
+                </div>
+              ))}
+            </Card>
+          </>
+        )}
+      </div>
+    );
+  });
 }
 
 function SpotRow({ spot, first, last }: { spot: Spot; first: boolean; last: boolean }) {
