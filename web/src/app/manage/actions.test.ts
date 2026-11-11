@@ -361,7 +361,9 @@ describe("invite sign-up", () => {
   });
 
   it("only the platform owner can create invites", async () => {
-    await expect(createInviteAction(null, form({ email: "new@shop.com" }))).rejects.toThrow("NOT_FOUND");
+    await expect(createInviteAction(null, form({ email: "new@shop.com" }))).rejects.toThrow(
+      "REDIRECT /sign-in?redirect_url=%2Fplatform%2Finvites",
+    );
     state.user = { email: "ava@example.com" };
     await expect(createInviteAction(null, form({ email: "new@shop.com" }))).rejects.toThrow("NOT_FOUND");
     state.user = { email: "owner@example.com", verified: false };
