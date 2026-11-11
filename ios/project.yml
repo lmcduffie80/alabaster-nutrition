@@ -24,6 +24,8 @@ targets:
       path: Alabaster/Info.plist
       properties:
         CFBundleDisplayName: Metzey
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
         NSCameraUsageDescription: Metzey uses the camera to photograph invoices and scan barcodes.
         UILaunchScreen:
