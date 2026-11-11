@@ -12,10 +12,13 @@ const state = vi.hoisted(() => ({
     throw new Error("no reading set");
   }) as (pages: Uint8Array[]) => Promise<unknown>,
   kept: [] as string[],
+  deleted: [] as string[],
 }));
 
 vi.mock("@/db", async (original) => ({ ...(await original<typeof import("@/db")>()), getDb: async () => state.db }));
 vi.mock("@clerk/nextjs/server", () => ({
+  auth: async () => ({ userId: state.user ? `user_${state.user.email}` : null }),
+  clerkClient: async () => ({ users: { deleteUser: async (id: string) => void state.deleted.push(id) } }),
   currentUser: async () =>
     state.user && {
       firstName: "Lee",
@@ -67,6 +70,7 @@ beforeEach(async () => {
   state.user = null;
   state.cookies.clear();
   state.kept = [];
+  state.deleted = [];
 });
 
 const employees = () => state.db.select().from(schema.employee);
@@ -388,5 +392,55 @@ describe("invite sign-up", () => {
     expect(await startBusinessAction(null, form({ invite: created!.token!, name: "Again", timeZone: "America/Chicago" }))).toMatchObject({
       error: expect.stringContaining("already been used"),
     });
+  });
+});
+
+const { deleteAccountAction } = await import("../account/actions");
+
+describe("account deletion", () => {
+  const emailsIn = (businessId: number) =>
+    withBusiness(state.db, businessId, async (tx) => (await tx.select().from(schema.employee)).map((e) => [e.displayName, e.email]));
+
+  beforeEach(async () => {
+    process.env.MANAGER_EMAILS = "";
+    await asBusiness(state.db, null);
+    await withBusiness(state.db, 1, (tx) =>
+      tx.insert(schema.employee).values([
+        { displayName: "Lee", email: "owner@example.com", role: "manager" },
+        { displayName: "Ava", email: "ava@example.com" },
+      ]),
+    );
+    await createBusiness(state.db, { id: 2, name: "Other Cafe" });
+    await withBusiness(state.db, 2, (tx) =>
+      tx.insert(schema.employee).values({ displayName: "Ava", email: "ava@example.com", role: "manager" }),
+    );
+  });
+
+  it("needs a typed confirmation and a signed-in person", async () => {
+    await expect(deleteAccountAction(null, form({ confirm: "DELETE" }))).rejects.toThrow("REDIRECT /sign-in");
+    state.user = { email: "ava@example.com" };
+    expect(await deleteAccountAction(null, form({ confirm: "yes" }))).toMatchObject({ error: /Type DELETE/ });
+    expect(state.deleted).toEqual([]);
+  });
+
+  it("a business's only manager can't delete their account", async () => {
+    state.user = { email: "owner@example.com" };
+    expect(await deleteAccountAction(null, form({ confirm: "delete" }))).toMatchObject({
+      error: expect.stringContaining("only manager of Alabaster Nutrition"),
+    });
+    expect(state.deleted).toEqual([]);
+    expect(await emailsIn(1)).toContainEqual(["Lee", "owner@example.com"]);
+  });
+
+  it("deletes the login and unlinks the email everywhere, keeping the team rows", async () => {
+    await withBusiness(state.db, 2, (tx) =>
+      tx.insert(schema.employee).values({ displayName: "Cam", email: "cam@example.com", role: "manager" }),
+    );
+    state.user = { email: "ava@example.com" };
+    await expect(deleteAccountAction(null, form({ confirm: "DELETE" }))).rejects.toThrow("REDIRECT /sign-in?reason=deleted");
+    expect(state.deleted).toEqual(["user_ava@example.com"]);
+    expect(await emailsIn(1)).toContainEqual(["Ava", null]);
+    expect(await emailsIn(2)).toContainEqual(["Ava", null]);
+    expect(await emailsIn(2)).toContainEqual(["Cam", "cam@example.com"]);
   });
 });

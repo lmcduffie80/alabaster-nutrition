@@ -81,12 +81,16 @@ export default function PrivacyPage() {
       <Section title="How long we keep it">
         Records are kept while the business uses the service, so timesheets and inventory history stay available.
         Invoice photos that weren&rsquo;t saved with a delivery are removed within a day. A business can ask us to
-        delete its data, and you can ask us to delete your account, at the email below.
+        delete its data at the email below.
       </Section>
 
       <Section title="Your choices">
-        You can ask to see, correct, or delete your information. Your manager can also correct or remove your team
-        details. Email us and we&rsquo;ll respond within 30 days.
+        You can delete your account yourself on the <strong>Account</strong> page, linked from manager Settings and
+        your schedule page, or at app.alabasternutrition.com/account. That removes your login and your email from every
+        team you&rsquo;re on; the businesses keep the work records they need, such as past timesheets, under your
+        name. A business&rsquo;s only manager has to add another manager first. You can also ask to see, correct, or
+        delete your information, and your manager can correct or remove your team details. Email us and we&rsquo;ll
+        respond within 30 days.
       </Section>
 
       <Section title="Children">The service is for businesses and their staff, and isn&rsquo;t meant for children under 13.</Section>

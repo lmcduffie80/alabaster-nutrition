@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import { withBusiness } from "@/db/tenant";
 import { localDateOf, weekStartOf } from "@/lib/domain/time";
@@ -67,6 +67,48 @@ export async function createBusiness(
     })
     .returning({ id: schema.business.id });
   return created.id;
+}
+
+/** Businesses where `email` is the only active manager who can sign in. Their account can't be deleted yet. */
+export async function soleManagerOf(db: Db, email: string): Promise<string[]> {
+  const sole: string[] = [];
+  for (const m of await businessesForEmail(db, email)) {
+    if (m.role !== "manager") continue;
+    const others = await withBusiness(db, m.businessId, (tx) =>
+      tx
+        .select({ id: schema.employee.id })
+        .from(schema.employee)
+        .where(
+          and(
+            eq(schema.employee.role, "manager"),
+            eq(schema.employee.active, true),
+            isNotNull(schema.employee.email),
+            ne(schema.employee.id, m.employeeId),
+          ),
+        )
+        .limit(1),
+    );
+    if (others.length === 0) sole.push(m.businessName);
+  }
+  return sole;
+}
+
+export function soleManagerMessage(businesses: string[]) {
+  return `You're the only manager of ${businesses.join(" and ")}. Add another manager with an email on the Team page first, or email lee@innovative-cc.com to close the business.`;
+}
+
+/** Unlinks `email` from every team it's on. The employee rows and their work records stay with the business. */
+export async function forgetEmail(db: Db, email: string) {
+  const normalized = normalizeEmail(email);
+  const rows = await db
+    .selectDistinct({ businessId: schema.employee.businessId })
+    .from(schema.employee)
+    .where(eq(schema.employee.email, normalized));
+  for (const { businessId } of rows) {
+    await withBusiness(db, businessId, (tx) =>
+      tx.update(schema.employee).set({ email: null }).where(eq(schema.employee.email, normalized)),
+    );
+  }
 }
 
 /** `MANAGER_EMAILS` people are Alabaster managers; their employee row is created or upgraded on sign-in. */
