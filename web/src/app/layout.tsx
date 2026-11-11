@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Great_Vibes } from "next/font/google";
+import { IdleSignOut } from "@/components/idle-sign-out";
 import "./globals.css";
 
 const greatVibes = Great_Vibes({
@@ -30,7 +31,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${greatVibes.variable} ${cormorant.variable} h-full antialiased`}>
       <body className="min-h-full font-sans">
-        <ClerkProvider>{children}</ClerkProvider>
+        <ClerkProvider>
+          {children}
+          <IdleSignOut />
+        </ClerkProvider>
       </body>
     </html>
   );
