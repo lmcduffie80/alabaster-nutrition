@@ -1,4 +1,5 @@
 import { SignIn } from "@clerk/nextjs";
+import Link from "next/link";
 import { Suspense } from "react";
 import { Wordmark } from "@/components/ui";
 import { IdleNotice } from "./idle-notice";
@@ -15,6 +16,9 @@ export default function SignInPage() {
       <p className="max-w-sm text-center text-xs text-ink/50">
         First time? Use the email your manager added for you and choose &ldquo;Sign up&rdquo;.
       </p>
+      <Link href="/privacy" className="text-xs text-ink/50 hover:underline">
+        Privacy
+      </Link>
     </main>
   );
 }
