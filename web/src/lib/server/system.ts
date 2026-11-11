@@ -94,7 +94,7 @@ export async function soleManagerOf(db: Db, email: string): Promise<string[]> {
 }
 
 export function soleManagerMessage(businesses: string[]) {
-  return `You're the only manager of ${businesses.join(" and ")}. Add another manager with an email on the Team page first, or email lee@innovative-cc.com to close the business.`;
+  return `You're the only manager of ${businesses.join(" and ")}. Add another manager with an email on the Team page first, or email shop@alabasternutrition.com to close the business.`;
 }
 
 /** Unlinks `email` from every team it's on. The employee rows and their work records stay with the business. */

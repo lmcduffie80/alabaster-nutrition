@@ -5,7 +5,7 @@ import { Wordmark } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Support · Metzey" };
 
-const CONTACT = "lee@innovative-cc.com";
+const CONTACT = "shop@alabasternutrition.com";
 
 export default function SupportPage() {
   return (

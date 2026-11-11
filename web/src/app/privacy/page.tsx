@@ -4,7 +4,7 @@ import { Wordmark } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Privacy Policy · Metzey" };
 
-const CONTACT = "lee@innovative-cc.com";
+const CONTACT = "shop@alabasternutrition.com";
 const UPDATED = "November 11, 2026";
 
 export default function PrivacyPage() {
