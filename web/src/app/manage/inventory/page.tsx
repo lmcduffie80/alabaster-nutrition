@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
-import { formatMoney, formatQuantity, itemTypeLabel, itemTypes, round2, type ItemType } from "@/lib/domain/inventory";
+import { formatMoney, formatQuantity, itemTypePlural, itemTypes, round2, type ItemType } from "@/lib/domain/inventory";
 import { formatDay, localDateOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
 import { inventorySummary, stockRows } from "@/lib/server/inventory";
@@ -51,7 +51,7 @@ export default async function StockPage({ searchParams }: PageProps<"/manage/inv
         <div className="mb-4 grid gap-2 sm:grid-cols-3">
           {[
             { label: "Stock value", rows },
-            ...itemTypes.map((t) => ({ label: `${itemTypeLabel[t]}s`, rows: rows.filter((r) => r.type === t) })),
+            ...itemTypes.map((t) => ({ label: itemTypePlural[t], rows: rows.filter((r) => r.type === t) })),
           ].map(({ label, rows: group }) => {
             const unpriced = group.filter((r) => r.onHand !== null && r.unitCost === null).length;
             return (
@@ -66,7 +66,7 @@ export default async function StockPage({ searchParams }: PageProps<"/manage/inv
 
         <div className="mb-4 flex flex-wrap gap-2">
           {filter("All", {}, !type && !lowOnly)}
-          {itemTypes.map((t) => filter(`${itemTypeLabel[t]}s`, { type: t }, type === t && !lowOnly))}
+          {itemTypes.map((t) => filter(itemTypePlural[t], { type: t }, type === t && !lowOnly))}
           {filter(`Running low (${summary.lowCount})`, { low: "1" }, lowOnly)}
         </div>
 

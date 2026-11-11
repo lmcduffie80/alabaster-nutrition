@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Badge, Card, inputClass } from "@/components/ui";
-import { formatMoney, formatQuantity, itemTypeLabel, itemTypes, round2 } from "@/lib/domain/inventory";
+import { formatMoney, formatQuantity, itemTypePlural, itemTypes, round2 } from "@/lib/domain/inventory";
 import { formatDay } from "@/lib/domain/time";
 import { stockRows } from "@/lib/server/inventory";
 import { spendingReport, usageReport, type SpendingBy } from "@/lib/server/inventory-reports";
@@ -78,7 +78,7 @@ async function Usage({ period }: { period?: string }) {
       <div className="mb-4 grid gap-2 sm:grid-cols-3">
         {itemTypes.map((t) => (
           <Card key={t} className="py-3">
-            <p className="text-xs text-ink/50">{itemTypeLabel[t]}s used</p>
+            <p className="text-xs text-ink/50">{itemTypePlural[t]} used</p>
             <p className="text-xl font-semibold tabular-nums">{formatMoney(report.costByType[t])}</p>
           </Card>
         ))}
@@ -160,7 +160,7 @@ async function StockValue() {
               <th className="px-4 py-2 font-medium">Stored in</th>
               {itemTypes.map((t) => (
                 <th key={t} className="px-2 py-2 text-right font-medium">
-                  {itemTypeLabel[t]}s
+                  {itemTypePlural[t]}
                 </th>
               ))}
               <th className="px-4 py-2 text-right font-medium">Total</th>

@@ -3,6 +3,7 @@ import { addDays, localDateOf, startOfLocalDay, weekday as weekdayOf, type Local
 export const itemTypes = ["ingredient", "supply"] as const;
 export type ItemType = (typeof itemTypes)[number];
 export const itemTypeLabel: Record<ItemType, string> = { ingredient: "Ingredient", supply: "Supply" };
+export const itemTypePlural: Record<ItemType, string> = { ingredient: "Ingredients", supply: "Supplies" };
 
 export const MAX_QUANTITY = 99_999_999.99;
 
