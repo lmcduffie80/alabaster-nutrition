@@ -222,7 +222,7 @@ function PinPad({
   return (
     <div className="flex h-full flex-col items-center justify-between px-10 py-10">
       <div className="text-center">
-        <Wordmark size="lg" />
+        <Wordmark size="lg" home={false} />
         <p className="mt-3 h-7 font-mono text-lg text-ink/60">{clockTime(now, timeZone)}</p>
       </div>
 

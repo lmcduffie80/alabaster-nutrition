@@ -2,13 +2,14 @@ import { SignOutButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button, FramedPanel, Wordmark } from "@/components/ui";
-import { currentKiosk, getViewer } from "@/lib/server/session";
+import { currentKiosk, getManager, getViewer } from "@/lib/server/session";
 
 export default async function Home() {
   const viewer = await getViewer();
   if (viewer?.kind === "manager") redirect("/manage");
   if (viewer?.kind === "employee") redirect("/schedule");
   if (viewer?.kind === "chooseBusiness") redirect("/choose-business");
+  if (!viewer && (await getManager())) redirect("/manage");
   if (!viewer && (await currentKiosk())) redirect("/kiosk");
 
   return (
