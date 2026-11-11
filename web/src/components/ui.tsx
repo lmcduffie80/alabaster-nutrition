@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 function notch(size: number) {
@@ -72,14 +73,23 @@ export function SectionTitle({ children, action }: { children: ReactNode; action
   );
 }
 
-export function Wordmark({ size = "sm" }: { size?: "sm" | "lg" }) {
-  return (
-    <div className="flex flex-col items-center leading-none text-porcelain">
+/** Links home unless `home` is false (the kiosk keypad, where a stray tap shouldn't leave the screen). */
+export function Wordmark({ size = "sm", home = true }: { size?: "sm" | "lg"; home?: boolean }) {
+  const mark = (
+    <>
       <span className={`font-script ${size === "lg" ? "text-6xl" : "text-3xl"}`}>Alabaster</span>
       <span className={`font-serif tracking-[0.3em] ${size === "lg" ? "mt-1 text-xl" : "text-[11px]"}`}>
         NUTRITION
       </span>
-    </div>
+    </>
+  );
+  const className = "flex flex-col items-center leading-none text-porcelain";
+  return home ? (
+    <Link href="/" aria-label="Home" className={`${className} rounded-lg hover:opacity-80`}>
+      {mark}
+    </Link>
+  ) : (
+    <div className={className}>{mark}</div>
   );
 }
 
