@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FramedPanel, Wordmark } from "@/components/ui";
-import { getDb } from "@/db";
 import { getBusiness } from "@/lib/server/business";
-import { currentKiosk } from "@/lib/server/session";
+import { currentKiosk, withKiosk } from "@/lib/server/session";
 import { Kiosk } from "./kiosk";
 
 export const metadata: Metadata = { title: "Time Clock · Alabaster Nutrition" };
@@ -27,7 +26,7 @@ export default async function KioskPage() {
       </main>
     );
   }
-  const business = await getBusiness(await getDb());
+  const business = await withKiosk(kiosk, getBusiness);
   return (
     <main className="h-dvh select-none overflow-hidden">
       <Kiosk autoReturnSeconds={business.kioskAutoReturnSeconds} timeZone={business.timeZone} />

@@ -1,8 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db";
-import { openLocalDatabase } from "@/db/local";
-import { getBusiness } from "./business";
+import { openBusinessDatabase } from "@/test/businesses";
 import { UserError } from "./errors";
 import {
   addItem,
@@ -41,8 +40,7 @@ let jordan: string;
 const sunday = new Date("2026-11-15T15:00:00Z");
 
 beforeEach(async () => {
-  db = await openLocalDatabase();
-  await getBusiness(db, sunday);
+  db = await openBusinessDatabase(sunday);
   backRoom = await addSpot(db, "Back room");
   fridge = await addSpot(db, "Fridge");
   ava = await addEmployee(db, { displayName: "Ava", email: "" });

@@ -2,8 +2,8 @@ import "server-only";
 import { get, put, setTtl } from "@vercel/blob";
 
 /** Invoice photos live in the private Blob store; unsaved scans expire on their own after a day. */
-export async function storePhoto(bytes: Uint8Array) {
-  const blob = await put(`invoices/${crypto.randomUUID()}.jpg`, Buffer.from(bytes), {
+export async function storePhoto(businessId: number, bytes: Uint8Array) {
+  const blob = await put(`invoices/${businessId}/${crypto.randomUUID()}.jpg`, Buffer.from(bytes), {
     access: "private",
     contentType: "image/jpeg",
     ttlDays: 1,

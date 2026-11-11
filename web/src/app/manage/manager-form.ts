@@ -1,9 +1,9 @@
 import "server-only";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getDb, type Db } from "@/db";
+import type { Db } from "@/db";
 import { UserError } from "@/lib/server/errors";
-import { requireManager, requireManagerAccount, type Manager } from "@/lib/server/session";
+import { withManager, type Manager } from "@/lib/server/session";
 
 export type FormState = { error?: string; success?: string; pin?: string; at?: number } | null;
 
@@ -23,8 +23,6 @@ export async function managerForm(
   work: (manager: Manager, db: Db) => Promise<FormState | void>,
   options: { account?: boolean; paths?: string[] } = {},
 ): Promise<FormState> {
-  const manager = options.account ? await requireManagerAccount() : await requireManager();
-  const db = await getDb();
   try {
     for (const name of ID_FIELDS) {
       const value = form.get(name);
@@ -33,7 +31,7 @@ export async function managerForm(
         throw new UserError("That item no longer exists. Refresh the page.");
       }
     }
-    const result = await work(manager, db);
+    const result = await withManager((db, manager) => work(manager, db), { account: options.account });
     for (const path of options.paths ?? ["/manage"]) revalidatePath(path, "layout");
     return { ...(result ?? {}), at: Date.now() };
   } catch (error) {

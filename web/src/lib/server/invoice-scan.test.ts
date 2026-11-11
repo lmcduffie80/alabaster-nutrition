@@ -1,8 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db";
-import { openLocalDatabase } from "@/db/local";
-import { getBusiness } from "./business";
+import { openBusinessDatabase } from "@/test/businesses";
 import { addItem, addSpot, addSupplier, listItems, recordDelivery, type ItemInput } from "./inventory";
 import type { InvoiceReading } from "./invoice-reader";
 import { matchInvoice, sameSupplier } from "./invoice-scan";
@@ -47,8 +46,7 @@ const line = (overrides: Partial<InvoiceReading["lines"][number]>): InvoiceReadi
 });
 
 beforeEach(async () => {
-  db = await openLocalDatabase();
-  await getBusiness(db, now);
+  db = await openBusinessDatabase(now);
   spotId = await addSpot(db, "Back room");
   sysco = await addSupplier(db, { name: "Sysco", contact: "", notes: "" });
 });

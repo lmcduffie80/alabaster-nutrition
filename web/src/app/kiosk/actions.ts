@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { getDb, type Db } from "@/db";
+import type { Db } from "@/db";
 import { parseQuantity } from "@/lib/domain/inventory";
 import { punchKinds, punchVerb } from "@/lib/domain/punches";
 import { formatTime } from "@/lib/domain/time";
@@ -24,6 +24,7 @@ import {
   getCountSession,
   startCountSession,
   startKioskManagerSession,
+  withKiosk,
 } from "@/lib/server/session";
 
 export type PinResult =
@@ -41,12 +42,13 @@ const pinSchema = z.string().regex(/^\d{4}$/);
 export async function enterEmployeePin(pin: string): Promise<PinResult> {
   const kiosk = await currentKiosk();
   if (!kiosk) return { kind: "notKiosk" };
-  const db = await getDb();
-  const now = new Date();
-  const check = await checkKioskPin(db, { kioskId: kiosk.id, pin: pinSchema.safeParse(pin).data ?? "", expect: "employee", now });
-  if (check.kind === "locked") return lockedResult(check, now);
-  if (check.kind !== "employee") return { kind: "wrong" };
-  return { kind: "employee", view: await kioskEmployeeView(db, { id: check.employeeId, displayName: check.displayName }, now) };
+  return withKiosk(kiosk, async (db): Promise<PinResult> => {
+    const now = new Date();
+    const check = await checkKioskPin(db, { kioskId: kiosk.id, pin: pinSchema.safeParse(pin).data ?? "", expect: "employee", now });
+    if (check.kind === "locked") return lockedResult(check, now);
+    if (check.kind !== "employee") return { kind: "wrong" };
+    return { kind: "employee", view: await kioskEmployeeView(db, { id: check.employeeId, displayName: check.displayName }, now) };
+  });
 }
 
 export type PunchResult = { kind: "done"; message: string } | { kind: "error"; message: string } | PinResult;
@@ -59,21 +61,22 @@ export async function punch(input: { pin: string; kind: string; requestId: strin
   if (!kiosk) return { kind: "notKiosk" };
   const parsed = punchSchema.safeParse(input);
   if (!parsed.success) return { kind: "error", message: "Something went wrong. Try again." };
-  const db = await getDb();
-  const now = new Date();
-  const check = await checkKioskPin(db, { kioskId: kiosk.id, pin: parsed.data.pin, expect: "employee", now });
-  if (check.kind === "locked") return lockedResult(check, now);
-  if (check.kind !== "employee") return { kind: "wrong" };
   try {
-    const recorded = await recordKioskPunch(db, {
-      employeeId: check.employeeId,
-      kind: parsed.data.kind,
-      requestId: parsed.data.requestId,
-      kioskDeviceId: kiosk.id,
-      now,
+    return await withKiosk(kiosk, async (db): Promise<PunchResult> => {
+      const now = new Date();
+      const check = await checkKioskPin(db, { kioskId: kiosk.id, pin: parsed.data.pin, expect: "employee", now });
+      if (check.kind === "locked") return lockedResult(check, now);
+      if (check.kind !== "employee") return { kind: "wrong" };
+      const recorded = await recordKioskPunch(db, {
+        employeeId: check.employeeId,
+        kind: parsed.data.kind,
+        requestId: parsed.data.requestId,
+        kioskDeviceId: kiosk.id,
+        now,
+      });
+      const { timeZone } = await getBusiness(db);
+      return { kind: "done", message: `${punchVerb[recorded.kind]} at ${formatTime(recorded.at, timeZone)}` };
     });
-    const { timeZone } = await getBusiness(db);
-    return { kind: "done", message: `${punchVerb[recorded.kind]} at ${formatTime(recorded.at, timeZone)}` };
   } catch (error) {
     if (error instanceof UserError) return { kind: "error", message: error.message };
     throw error;
@@ -83,9 +86,10 @@ export async function punch(input: { pin: string; kind: string; requestId: strin
 export async function unlockManager(pin: string): Promise<PinResult | { kind: "manager" }> {
   const kiosk = await currentKiosk();
   if (!kiosk) return { kind: "notKiosk" };
-  const db = await getDb();
   const now = new Date();
-  const check = await checkKioskPin(db, { kioskId: kiosk.id, pin: pinSchema.safeParse(pin).data ?? "", expect: "manager", now });
+  const check = await withKiosk(kiosk, (db) =>
+    checkKioskPin(db, { kioskId: kiosk.id, pin: pinSchema.safeParse(pin).data ?? "", expect: "manager", now }),
+  );
   if (check.kind === "locked") return lockedResult(check, now);
   if (check.kind !== "manager") return { kind: "wrong" };
   await startKioskManagerSession(kiosk.id, now);
@@ -140,16 +144,19 @@ async function asCountResult(work: () => Promise<CountResult>): Promise<CountRes
 export async function startCounting(pin: string): Promise<CountResult> {
   const kiosk = await currentKiosk();
   if (!kiosk) return { kind: "notKiosk" };
-  const db = await getDb();
   const now = new Date();
-  const check = await checkKioskPin(db, { kioskId: kiosk.id, pin: pinSchema.safeParse(pin).data ?? "", expect: "employee", now });
+  const check = await withKiosk(kiosk, (db) =>
+    checkKioskPin(db, { kioskId: kiosk.id, pin: pinSchema.safeParse(pin).data ?? "", expect: "employee", now }),
+  );
   if (check.kind === "locked") return lockedResult(check, now);
   if (check.kind !== "employee") return { kind: "wrong" };
-  return asCountResult(async () => {
-    const countId = await startOrContinueCount(db, { employeeId: check.employeeId, now });
-    await startCountSession(kiosk.id, check.employeeId, now);
-    return { kind: "counting", view: await countScreenView(db, countId) };
-  });
+  return asCountResult(() =>
+    withKiosk(kiosk, async (db) => {
+      const countId = await startOrContinueCount(db, { employeeId: check.employeeId, now });
+      await startCountSession(kiosk.id, check.employeeId, now);
+      return { kind: "counting", view: await countScreenView(db, countId) };
+    }),
+  );
 }
 
 const entrySchema = z.object({ countId: z.uuid(), itemId: z.uuid(), quantity: z.string().max(20) });
@@ -167,8 +174,8 @@ export async function enterCount(input: { countId: string; itemId: string; quant
   }
   return asCountResult(async () => {
     const now = new Date();
-    await enterCountLine(await getDb(), { ...parsed.data, quantity, employeeId: session.employeeId, now });
-    await startCountSession(session.kioskId, session.employeeId, now);
+    await withKiosk(session.kiosk, (db) => enterCountLine(db, { ...parsed.data, quantity, employeeId: session.employeeId, now }));
+    await startCountSession(session.kiosk.id, session.employeeId, now);
     return { kind: "saved", quantity };
   });
 }
@@ -178,7 +185,9 @@ export async function finishCounting(input: { countId: string }): Promise<CountR
   if (!session) return { kind: "expired" };
   if (!z.uuid().safeParse(input.countId).success) return { kind: "error", message: "This count is no longer open." };
   return asCountResult(async () => {
-    const { skipped } = await finishCount(await getDb(), { countId: input.countId, employeeId: session.employeeId, now: new Date() });
+    const { skipped } = await withKiosk(session.kiosk, (db) =>
+      finishCount(db, { countId: input.countId, employeeId: session.employeeId, now: new Date() }),
+    );
     await endCountSession();
     return { kind: "finished", skipped };
   });

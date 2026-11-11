@@ -6,7 +6,7 @@ import { getBusiness } from "./business";
 import { UserError } from "./errors";
 import { newToken, pinDigest, tokenDigest } from "./secrets";
 
-export type KioskDevice = typeof schema.kioskDevice.$inferSelect;
+export type { KioskDevice } from "./system";
 
 export async function enrollKiosk(db: Db, label: string) {
   const name = label.trim().slice(0, 40) || "Store iPad";
@@ -16,19 +16,6 @@ export async function enrollKiosk(db: Db, label: string) {
     .values({ label: name, tokenDigest: tokenDigest(token) })
     .returning();
   return { device, token };
-}
-
-export async function findKiosk(db: Db, token: string | undefined, now = new Date()): Promise<KioskDevice | null> {
-  if (!token) return null;
-  const [device] = await db
-    .select()
-    .from(schema.kioskDevice)
-    .where(and(eq(schema.kioskDevice.tokenDigest, tokenDigest(token)), isNull(schema.kioskDevice.revokedAt)));
-  if (!device) return null;
-  if (!device.lastSeenAt || now.getTime() - device.lastSeenAt.getTime() > 3_600_000) {
-    await db.update(schema.kioskDevice).set({ lastSeenAt: now }).where(eq(schema.kioskDevice.id, device.id));
-  }
-  return device;
 }
 
 export async function listKiosks(db: Db) {
