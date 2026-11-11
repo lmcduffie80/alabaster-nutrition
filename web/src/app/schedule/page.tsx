@@ -1,5 +1,6 @@
 import { UserButton } from "@clerk/nextjs";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Card, ColorDot, employeeColor, FramedPanel, SectionTitle, Wordmark } from "@/components/ui";
 import { addDays, formatDay, formatTime, localDateOf, startOfLocalDay, weekStartOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
@@ -7,7 +8,7 @@ import { publishedShifts } from "@/lib/server/schedule";
 import { withMember } from "@/lib/server/session";
 import { listEmployees } from "@/lib/server/team";
 
-export const metadata: Metadata = { title: "My Schedule · Alabaster Nutrition" };
+export const metadata: Metadata = { title: "My Schedule · Metzey" };
 
 export default async function EmployeeSchedulePage() {
   const { viewer, timeZone, today, weekStart, shifts, team } = await withMember(async (db, viewer) => {
@@ -26,7 +27,7 @@ export default async function EmployeeSchedulePage() {
   return (
     <main className="mx-auto max-w-lg px-4 py-6">
       <header className="flex items-center justify-between">
-        <Wordmark />
+        <Wordmark business={viewer.businessName} />
         <UserButton />
       </header>
 
@@ -86,6 +87,15 @@ export default async function EmployeeSchedulePage() {
         })}
       </div>
       <p className="mt-6 text-center text-xs text-ink/50">Clock in and out on the store iPad.</p>
+      <p className="mt-2 text-center text-xs text-ink/50">
+        <Link href="/account" className="hover:underline">
+          Delete my account
+        </Link>
+        {" · "}
+        <Link href="/privacy" className="hover:underline">
+          Privacy
+        </Link>
+      </p>
     </main>
   );
 }

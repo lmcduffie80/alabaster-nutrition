@@ -17,9 +17,9 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Alabaster Nutrition",
-  description: "Time clock and schedule for Alabaster Nutrition.",
-  appleWebApp: { capable: true, title: "Alabaster", statusBarStyle: "default" },
+  title: "Metzey",
+  description: "Time clock, schedule and inventory for small businesses.",
+  appleWebApp: { capable: true, title: "Metzey", statusBarStyle: "default" },
   robots: { index: false, follow: false },
 };
 

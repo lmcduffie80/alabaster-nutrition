@@ -28,6 +28,9 @@ export default async function Home() {
                 <Button variant="secondary">Sign out</Button>
               </SignOutButton>
             </div>
+            <Link href="/account" className="mt-3 inline-block text-xs text-ink/50 hover:underline">
+              Delete my account
+            </Link>
           </>
         ) : (
           <>

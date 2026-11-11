@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge, Card, Field, inputClass, SectionTitle } from "@/components/ui";
 import { formatDay, localDateOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
@@ -123,6 +124,18 @@ export default async function SettingsPage() {
             </div>
           </ActionForm>
         </Card>
+
+        {!accountOnly && (
+          <>
+            <SectionTitle>Your account</SectionTitle>
+            <Card className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink/70">
+              <p>Delete your login and remove your email from every team.</p>
+              <Link href="/account" className="font-semibold text-red-700 hover:underline">
+                Delete my account
+              </Link>
+            </Card>
+          </>
+        )}
       </div>
     );
   });

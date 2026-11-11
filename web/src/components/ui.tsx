@@ -73,14 +73,21 @@ export function SectionTitle({ children, action }: { children: ReactNode; action
   );
 }
 
-/** Links home unless `home` is false (the kiosk keypad, where a stray tap shouldn't leave the screen). */
-export function Wordmark({ size = "sm", home = true }: { size?: "sm" | "lg"; home?: boolean }) {
+/**
+ * The Metzey mark, with the business's name under it once we know whose screen this is. Links home unless `home`
+ * is false (the kiosk keypad, where a stray tap shouldn't leave the screen).
+ */
+export function Wordmark({ size = "sm", home = true, business }: { size?: "sm" | "lg"; home?: boolean; business?: string }) {
   const mark = (
     <>
-      <span className={`font-script ${size === "lg" ? "text-6xl" : "text-3xl"}`}>Alabaster</span>
-      <span className={`font-serif tracking-[0.3em] ${size === "lg" ? "mt-1 text-xl" : "text-[11px]"}`}>
-        NUTRITION
-      </span>
+      <span className={`font-script ${size === "lg" ? "text-6xl" : "text-3xl"}`}>Metzey</span>
+      {business && (
+        <span
+          className={`max-w-full text-center font-serif uppercase tracking-[0.25em] ${size === "lg" ? "mt-2 text-lg" : "mt-0.5 text-[10px]"}`}
+        >
+          {business}
+        </span>
+      )}
     </>
   );
   const className = "flex flex-col items-center leading-none text-porcelain";

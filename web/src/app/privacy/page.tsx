@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Wordmark } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Privacy Policy · Alabaster" };
+export const metadata: Metadata = { title: "Privacy Policy · Metzey" };
 
 const CONTACT = "lee@innovative-cc.com";
-const UPDATED = "November 10, 2026";
+const UPDATED = "November 11, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -15,8 +15,8 @@ export default function PrivacyPage() {
       <p className="text-sm text-ink/60">Last updated {UPDATED}</p>
 
       <Section title="Who we are">
-        This policy covers the Alabaster website at app.alabasternutrition.com and the Alabaster iPhone and iPad app,
-        which shows the same website. They are run by Donald McDuffie (&ldquo;we&rdquo;). The service gives small
+        This policy covers Metzey: the website at app.alabasternutrition.com and the Metzey iPhone and iPad app, which
+        shows the same website. They are run by Donald McDuffie (&ldquo;we&rdquo;). The service gives small
         businesses a time clock, staff schedules, timesheets, and inventory tracking. Each business&rsquo;s information
         is kept separate and is only visible to people on that business&rsquo;s team.
       </Section>
@@ -81,12 +81,16 @@ export default function PrivacyPage() {
       <Section title="How long we keep it">
         Records are kept while the business uses the service, so timesheets and inventory history stay available.
         Invoice photos that weren&rsquo;t saved with a delivery are removed within a day. A business can ask us to
-        delete its data, and you can ask us to delete your account, at the email below.
+        delete its data at the email below.
       </Section>
 
       <Section title="Your choices">
-        You can ask to see, correct, or delete your information. Your manager can also correct or remove your team
-        details. Email us and we&rsquo;ll respond within 30 days.
+        You can delete your account yourself on the <strong>Account</strong> page, linked from manager Settings and
+        your schedule page, or at app.alabasternutrition.com/account. That removes your login and your email from every
+        team you&rsquo;re on; the businesses keep the work records they need, such as past timesheets, under your
+        name. A business&rsquo;s only manager has to add another manager first. You can also ask to see, correct, or
+        delete your information, and your manager can correct or remove your team details. Email us and we&rsquo;ll
+        respond within 30 days.
       </Section>
 
       <Section title="Children">The service is for businesses and their staff, and isn&rsquo;t meant for children under 13.</Section>
