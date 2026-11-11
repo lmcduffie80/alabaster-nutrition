@@ -1,10 +1,11 @@
 import "server-only";
 import { currentUser } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
-import { redirect, unstable_rethrow } from "next/navigation";
+import { notFound, redirect, unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 import { getDb, type Db } from "@/db";
 import { withBusiness } from "@/db/tenant";
+import { platformOwnerEmails } from "./invites";
 import { sign, verify } from "./secrets";
 import {
   businessesForEmail,
@@ -52,25 +53,35 @@ export function pickMembership(email: string, memberships: Membership[], choice:
   return chosen.role === "manager" ? { kind: "manager", ...base } : { kind: "employee", ...base, displayName: chosen.displayName };
 }
 
-/** The signed-in person, by their verified email. `null` when nobody is signed in. */
-export const getViewer = cache(async (): Promise<Viewer | null> => {
+export type SignedIn = { email: string | null; firstName: string };
+
+/** The Clerk account, if any; `email` is null until it's verified. */
+export const getSignedIn = cache(async (): Promise<SignedIn | null> => {
   const user = await currentUser();
   if (!user) return null;
   const primary = user.primaryEmailAddress;
-  if (!primary || primary.verification?.status !== "verified") return { kind: "noAccess", email: null };
-  const email = normalizeEmail(primary.emailAddress);
+  const verified = primary && primary.verification?.status === "verified";
+  return { email: verified ? normalizeEmail(primary.emailAddress) : null, firstName: user.firstName ?? "" };
+});
+
+/** The signed-in person, by their verified email. `null` when nobody is signed in. */
+export const getViewer = cache(async (): Promise<Viewer | null> => {
+  const signedIn = await getSignedIn();
+  if (!signedIn) return null;
+  const { email } = signedIn;
+  if (!email) return { kind: "noAccess", email: null };
   const db = await getDb();
-  if (managerEmails().has(email)) await ensureFirstBusinessManager(db, email, user.firstName ?? "");
+  if (managerEmails().has(email)) await ensureFirstBusinessManager(db, email, signedIn.firstName);
   const choice = verify<BusinessChoice>((await cookies()).get(BUSINESS_COOKIE)?.value);
   return pickMembership(email, await businessesForEmail(db, email), choice);
 });
 
 export async function chooseBusiness(businessId: number) {
-  const viewer = await getViewer();
-  if (viewer?.kind !== "chooseBusiness" && viewer?.kind !== "manager" && viewer?.kind !== "employee") redirect("/");
-  const memberships = await businessesForEmail(await getDb(), viewer.email);
+  const email = (await getSignedIn())?.email;
+  if (!email) redirect("/");
+  const memberships = await businessesForEmail(await getDb(), email);
   if (!memberships.some((m) => m.businessId === businessId)) throw new Error("Not a member of that business.");
-  (await cookies()).set(BUSINESS_COOKIE, sign({ email: viewer.email, businessId } satisfies BusinessChoice), {
+  (await cookies()).set(BUSINESS_COOKIE, sign({ email, businessId } satisfies BusinessChoice), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -181,6 +192,13 @@ export async function requireManagerAccount(): Promise<Manager> {
   const manager = await getManager();
   if (manager?.via !== "account") redirect("/");
   return manager;
+}
+
+/** The platform owner's pages: anyone else gets a plain 404. */
+export async function requirePlatformOwner(): Promise<{ email: string; db: Db }> {
+  const email = (await getSignedIn())?.email;
+  if (!email || !platformOwnerEmails().has(email)) notFound();
+  return { email, db: await getDb() };
 }
 
 // Every request's database work goes through one of these, inside its business's walls.

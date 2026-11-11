@@ -39,6 +39,23 @@ export const business = pgTable("business", {
   createdAt: createdAt(),
 });
 
+/** A one-time link the platform owner sends so someone can create a business. Not visible to any business. */
+export const businessInvite = pgTable(
+  "business_invite",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    email: text("email").notNull(),
+    tokenDigest: text("token_digest").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: createdAt(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    businessId: integer("business_id").references(() => business.id),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("business_invite_token").on(t.tokenDigest)],
+);
+
 /**
  * The owning business. Filled from the transaction's `app.business_id` (see `db/tenant.ts`); row-level
  * security rejects any other value and hides other businesses' rows.
@@ -409,6 +426,9 @@ export const inventoryAudit = pgTable(
   },
   (t) => [index("inventory_audit_entity").on(t.entity, t.entityId)],
 );
+
+/** Platform tables: row-level security on, with no access at all for `tenant_app`. */
+export const platformTables = ["business_invite"] as const;
 
 /** Every table that belongs to a business; each gets row-level security in the migration. */
 export const businessTables = [
