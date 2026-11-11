@@ -2,10 +2,11 @@ import { UserButton } from "@clerk/nextjs";
 import { CalendarDays, FileSpreadsheet, Package, Settings, Sun, Users } from "lucide-react";
 import type { Metadata } from "next";
 import { Wordmark } from "@/components/ui";
-import { requireManager } from "@/lib/server/session";
+import { getBusiness } from "@/lib/server/business";
+import { requireManager, withManager } from "@/lib/server/session";
 import { KioskLock, NavLink } from "./forms";
 
-export const metadata: Metadata = { title: "Manager · Alabaster Nutrition" };
+export const metadata: Metadata = { title: "Manager · Metzey" };
 
 const links = [
   { href: "/manage", label: "Today", icon: Sun },
@@ -18,11 +19,12 @@ const links = [
 
 export default async function ManageLayout({ children }: LayoutProps<"/manage">) {
   const manager = await requireManager();
+  const { name } = await withManager(getBusiness);
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <nav className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-ink/10 bg-white/80 p-2 md:w-44 md:flex-col md:items-stretch md:border-b-0 md:border-r md:p-3 md:pt-8">
         <div className="mr-2 md:mb-4 md:mr-0">
-          <Wordmark />
+          <Wordmark business={name} />
         </div>
         {links.map(({ href, label, icon: Icon }) => (
           <NavLink key={href} href={href}>

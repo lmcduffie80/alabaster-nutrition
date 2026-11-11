@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Wordmark } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Privacy Policy · Alabaster" };
+export const metadata: Metadata = { title: "Privacy Policy · Metzey" };
 
 const CONTACT = "lee@innovative-cc.com";
-const UPDATED = "November 10, 2026";
+const UPDATED = "November 11, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -15,8 +15,8 @@ export default function PrivacyPage() {
       <p className="text-sm text-ink/60">Last updated {UPDATED}</p>
 
       <Section title="Who we are">
-        This policy covers the Alabaster website at app.alabasternutrition.com and the Alabaster iPhone and iPad app,
-        which shows the same website. They are run by Donald McDuffie (&ldquo;we&rdquo;). The service gives small
+        This policy covers Metzey: the website at app.alabasternutrition.com and the Metzey iPhone and iPad app, which
+        shows the same website. They are run by Donald McDuffie (&ldquo;we&rdquo;). The service gives small
         businesses a time clock, staff schedules, timesheets, and inventory tracking. Each business&rsquo;s information
         is kept separate and is only visible to people on that business&rsquo;s team.
       </Section>

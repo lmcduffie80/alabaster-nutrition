@@ -38,7 +38,15 @@ function useNow() {
   return useSyncExternalStore(subscribeClock, () => Math.floor(Date.now() / 1000) * 1000, () => 0);
 }
 
-export function Kiosk({ autoReturnSeconds, timeZone }: { autoReturnSeconds: number; timeZone: string }) {
+export function Kiosk({
+  autoReturnSeconds,
+  timeZone,
+  businessName,
+}: {
+  autoReturnSeconds: number;
+  timeZone: string;
+  businessName: string;
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>({ kind: "keypad" });
   const [activity, setActivity] = useState(0);
@@ -88,6 +96,7 @@ export function Kiosk({ autoReturnSeconds, timeZone }: { autoReturnSeconds: numb
           title="Enter your PIN"
           subtitle="to clock in or out"
           timeZone={timeZone}
+          businessName={businessName}
           submit={async (pin) => {
             const result = await enterEmployeePin(pin);
             if (result.kind === "employee") setMode({ kind: "employee", pin, view: result.view, loadedAt: Date.now() });
@@ -107,6 +116,7 @@ export function Kiosk({ autoReturnSeconds, timeZone }: { autoReturnSeconds: numb
           title="Manager"
           subtitle="Enter the manager PIN"
           timeZone={timeZone}
+          businessName={businessName}
           submit={async (pin) => {
             const result = await unlockManager(pin);
             if (result.kind === "manager") {
@@ -173,12 +183,14 @@ function PinPad({
   title,
   subtitle,
   timeZone,
+  businessName,
   submit,
   footer,
 }: {
   title: string;
   subtitle: string;
   timeZone: string;
+  businessName: string;
   submit: (pin: string) => Promise<PadResult>;
   footer: ReactNode;
 }) {
@@ -222,7 +234,7 @@ function PinPad({
   return (
     <div className="flex h-full flex-col items-center justify-between px-10 py-10">
       <div className="text-center">
-        <Wordmark size="lg" home={false} />
+        <Wordmark size="lg" home={false} business={businessName} />
         <p className="mt-3 h-7 font-mono text-lg text-ink/60">{clockTime(now, timeZone)}</p>
       </div>
 

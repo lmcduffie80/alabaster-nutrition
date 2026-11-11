@@ -5,7 +5,7 @@ import { getBusiness } from "@/lib/server/business";
 import { currentKiosk, withKiosk } from "@/lib/server/session";
 import { Kiosk } from "./kiosk";
 
-export const metadata: Metadata = { title: "Time Clock · Alabaster Nutrition" };
+export const metadata: Metadata = { title: "Time Clock · Metzey" };
 
 export default async function KioskPage() {
   const kiosk = await currentKiosk();
@@ -29,7 +29,11 @@ export default async function KioskPage() {
   const business = await withKiosk(kiosk, getBusiness);
   return (
     <main className="h-dvh select-none overflow-hidden">
-      <Kiosk autoReturnSeconds={business.kioskAutoReturnSeconds} timeZone={business.timeZone} />
+      <Kiosk
+        autoReturnSeconds={business.kioskAutoReturnSeconds}
+        timeZone={business.timeZone}
+        businessName={business.name}
+      />
     </main>
   );
 }

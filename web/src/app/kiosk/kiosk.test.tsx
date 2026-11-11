@@ -45,7 +45,7 @@ describe("Kiosk", () => {
   it("clocks an employee in with their PIN and confirms it", async () => {
     actions.enterEmployeePin.mockResolvedValue({ kind: "employee", view });
     actions.punch.mockResolvedValue({ kind: "done", message: "Clocked in at 6:58 AM" });
-    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" />);
+    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" businessName="Alabaster Nutrition" />);
 
     await typePin("4821");
     expect(actions.enterEmployeePin).toHaveBeenCalledWith("4821");
@@ -63,7 +63,7 @@ describe("Kiosk", () => {
 
   it("says when a PIN is wrong and when the keypad locks", async () => {
     actions.enterEmployeePin.mockResolvedValueOnce({ kind: "wrong" }).mockResolvedValueOnce({ kind: "locked", secondsLeft: 30 });
-    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" />);
+    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" businessName="Alabaster Nutrition" />);
 
     await typePin("1111");
     expect(screen.getByRole("alert").textContent).toContain("didn’t match");
@@ -74,7 +74,7 @@ describe("Kiosk", () => {
   it("tells the employee nothing was saved when the connection drops", async () => {
     actions.enterEmployeePin.mockResolvedValue({ kind: "employee", view });
     actions.punch.mockRejectedValue(new TypeError("Failed to fetch"));
-    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" />);
+    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" businessName="Alabaster Nutrition" />);
 
     await typePin("4821");
     await act(async () => {
@@ -85,7 +85,7 @@ describe("Kiosk", () => {
 
   it("opens the manager tools only after the manager PIN", async () => {
     actions.unlockManager.mockResolvedValueOnce({ kind: "wrong" }).mockResolvedValueOnce({ kind: "manager" });
-    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" />);
+    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" businessName="Alabaster Nutrition" />);
 
     fireEvent.click(screen.getByRole("button", { name: /Manager/ }));
     await typePin("4821");
@@ -108,7 +108,7 @@ describe("Kiosk", () => {
     });
     actions.enterCount.mockResolvedValue({ kind: "saved", quantity: 2.5 });
     actions.finishCounting.mockResolvedValue({ kind: "finished", skipped: 1 });
-    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" />);
+    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" businessName="Alabaster Nutrition" />);
 
     await typePin("4821");
     expect(screen.getByText("Count due")).toBeTruthy();
@@ -150,7 +150,7 @@ describe("Kiosk", () => {
       },
     });
     actions.enterCount.mockRejectedValueOnce(new TypeError("Failed to fetch")).mockResolvedValueOnce({ kind: "saved", quantity: 3 });
-    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" />);
+    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" businessName="Alabaster Nutrition" />);
     await typePin("4821");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Count inventory/ }));
@@ -172,7 +172,7 @@ describe("Kiosk", () => {
   it("goes back to the keypad after the idle time", async () => {
     vi.useFakeTimers();
     actions.enterEmployeePin.mockResolvedValue({ kind: "employee", view });
-    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" />);
+    render(<Kiosk autoReturnSeconds={10} timeZone="America/New_York" businessName="Alabaster Nutrition" />);
     await typePin("4821");
     expect(screen.getByText("Hi, Ava")).toBeTruthy();
     act(() => {

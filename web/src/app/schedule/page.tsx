@@ -7,7 +7,7 @@ import { publishedShifts } from "@/lib/server/schedule";
 import { withMember } from "@/lib/server/session";
 import { listEmployees } from "@/lib/server/team";
 
-export const metadata: Metadata = { title: "My Schedule · Alabaster Nutrition" };
+export const metadata: Metadata = { title: "My Schedule · Metzey" };
 
 export default async function EmployeeSchedulePage() {
   const { viewer, timeZone, today, weekStart, shifts, team } = await withMember(async (db, viewer) => {
@@ -26,7 +26,7 @@ export default async function EmployeeSchedulePage() {
   return (
     <main className="mx-auto max-w-lg px-4 py-6">
       <header className="flex items-center justify-between">
-        <Wordmark />
+        <Wordmark business={viewer.businessName} />
         <UserButton />
       </header>
 
