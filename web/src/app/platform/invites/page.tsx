@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { Badge, Card, SectionTitle, Wordmark } from "@/components/ui";
+import { Badge, Card, SectionTitle } from "@/components/ui";
 import { SubmitButton } from "@/app/manage/forms";
 import { listInvites, type InviteStatus } from "@/lib/server/invites";
 import { requirePlatformOwner } from "@/lib/server/session";
+import { PlatformHeader } from "../platform-header";
 import { cancelInviteAction } from "./actions";
 import { InviteForm } from "./invite-form";
 
@@ -16,17 +17,14 @@ const statusBadge: Record<InviteStatus, { label: string; tone: "neutral" | "gilt
 };
 
 export default async function InvitesPage() {
-  const { db } = await requirePlatformOwner();
+  const { db } = await requirePlatformOwner("/platform/invites");
   const now = new Date();
   const invites = await listInvites(db, now);
   const day = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6">
-      <header className="flex items-center justify-between">
-        <Wordmark />
-        <span className="text-xs font-semibold uppercase tracking-wider text-ink/50">Platform</span>
-      </header>
+      <PlatformHeader current="/platform/invites" />
 
       <h1 className="mt-6 font-serif text-3xl font-semibold">Invites</h1>
       <p className="text-sm text-ink/60">A sign-up link lets one person create a new business, with them as its manager.</p>

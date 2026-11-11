@@ -8,7 +8,7 @@ import { requirePlatformOwner } from "@/lib/server/session";
 export type InviteFormState = { error?: string; token?: string; email?: string; at?: number } | null;
 
 export async function createInviteAction(_: InviteFormState, form: FormData): Promise<InviteFormState> {
-  const { email, db } = await requirePlatformOwner();
+  const { email, db } = await requirePlatformOwner("/platform/invites");
   const invitee = String(form.get("email") ?? "");
   try {
     const { token } = await createInvite(db, { email: invitee, createdBy: email, now: new Date() });
@@ -21,7 +21,7 @@ export async function createInviteAction(_: InviteFormState, form: FormData): Pr
 }
 
 export async function cancelInviteAction(form: FormData) {
-  const { db } = await requirePlatformOwner();
+  const { db } = await requirePlatformOwner("/platform/invites");
   await cancelInvite(db, String(form.get("id") ?? ""), new Date());
   revalidatePath("/platform/invites");
 }

@@ -195,9 +195,9 @@ export async function requireManagerAccount(): Promise<Manager> {
 }
 
 /** The platform owner's pages: anyone else gets a plain 404. */
-export async function requirePlatformOwner(): Promise<{ email: string; db: Db }> {
+export async function requirePlatformOwner(returnTo = "/platform"): Promise<{ email: string; db: Db }> {
   const signedIn = await getSignedIn();
-  if (!signedIn) redirect(`/sign-in?redirect_url=${encodeURIComponent("/platform/invites")}`);
+  if (!signedIn) redirect(`/sign-in?redirect_url=${encodeURIComponent(returnTo)}`);
   const email = signedIn.email;
   if (!email || !platformOwnerEmails().has(email)) notFound();
   return { email, db: await getDb() };

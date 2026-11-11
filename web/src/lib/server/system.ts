@@ -7,8 +7,8 @@ import { tokenDigest } from "./secrets";
 import { ensureOwner, normalizeEmail } from "./team";
 
 /**
- * The only code that reads the database without `withBusiness`: the lookups that find out which business a
- * request belongs to. Keep it to IDs and the few fields sign-in needs.
+ * With `invites.ts` and `platform.ts`, the only code that reads the database without `withBusiness`: the lookups
+ * that find out which business a request belongs to. Keep it to IDs and the few fields sign-in needs.
  */
 
 /** Alabaster, whose managers can also come from `MANAGER_EMAILS`. */
