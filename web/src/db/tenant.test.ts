@@ -88,6 +88,11 @@ describe("walls between businesses", () => {
     expect(seen).toEqual([]);
   });
 
+  it("the app role can't touch platform tables at all", async () => {
+    await db.insert(schema.businessInvite).values({ email: "x@example.com", tokenDigest: "d", createdBy: "me", expiresAt: now });
+    await expect(asOne((tx) => tx.select().from(schema.businessInvite))).rejects.toThrow();
+  });
+
   it("every business table has row-level security on", async () => {
     const result = await db.execute(
       sql`select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r'`,
@@ -98,6 +103,6 @@ describe("walls between businesses", () => {
     expect(tables.length).toBeGreaterThan(10);
     expect(tables.filter((name) => !secured.has(name))).toEqual([]);
     expect(secured.has("business")).toBe(true);
-    expect([...schema.businessTables].sort()).toEqual([...tables].sort());
+    expect([...schema.businessTables, ...schema.platformTables].sort()).toEqual([...tables].sort());
   });
 });

@@ -1,6 +1,9 @@
 .DS_Store
 xcuserdata/
 DerivedData/
+ios/build/
+ios/*.xcodeproj/
+ios/Alabaster/Info.plist
 *.xcuserstate
 .build/
 node_modules/

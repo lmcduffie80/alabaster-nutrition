@@ -43,8 +43,11 @@ vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`REDIRECT ${to}`);
   },
+  notFound: () => {
+    throw new Error("NOT_FOUND");
+  },
   unstable_rethrow: (error: unknown) => {
-    if (error instanceof Error && error.message.startsWith("REDIRECT ")) throw error;
+    if (error instanceof Error && (error.message.startsWith("REDIRECT ") || error.message === "NOT_FOUND")) throw error;
   },
 }));
 
@@ -344,5 +347,44 @@ describe("more than one business", () => {
     expect((await addEmployeeAction(null, form({ displayName: "Dee", email: "" })))?.error).toBeUndefined();
     expect(await namesIn(2)).toEqual(["Cam", "Dee"]);
     expect(await namesIn(1)).toEqual(["Cam"]);
+  });
+});
+
+const { createInviteAction } = await import("../platform/invites/actions");
+const { startBusinessAction } = await import("../start/actions");
+
+describe("invite sign-up", () => {
+
+  beforeEach(async () => {
+    process.env.PLATFORM_OWNER_EMAILS = "owner@example.com";
+    await asBusiness(state.db, null);
+  });
+
+  it("only the platform owner can create invites", async () => {
+    await expect(createInviteAction(null, form({ email: "new@shop.com" }))).rejects.toThrow("NOT_FOUND");
+    state.user = { email: "ava@example.com" };
+    await expect(createInviteAction(null, form({ email: "new@shop.com" }))).rejects.toThrow("NOT_FOUND");
+    state.user = { email: "owner@example.com", verified: false };
+    await expect(createInviteAction(null, form({ email: "new@shop.com" }))).rejects.toThrow("NOT_FOUND");
+  });
+
+  it("the invited person creates their business and lands in it", async () => {
+    state.user = { email: "owner@example.com" };
+    const created = await createInviteAction(null, form({ email: "new@shop.com" }));
+    expect(created?.token).toBeTruthy();
+
+    state.user = { email: "new@shop.com" };
+    await expect(
+      startBusinessAction(null, form({ invite: created!.token!, name: "Corner Cafe", timeZone: "America/Chicago" })),
+    ).rejects.toThrow("REDIRECT /manage");
+    expect((await addEmployeeAction(null, form({ displayName: "Dee", email: "" })))?.error).toBeUndefined();
+
+    const cafe = (await state.db.select().from(schema.business)).find((b) => b.name === "Corner Cafe")!;
+    const names = await withBusiness(state.db, cafe.id, async (tx) => (await tx.select().from(schema.employee)).map((e) => e.displayName).sort());
+    expect(names).toEqual(["Dee", "Lee"]);
+
+    expect(await startBusinessAction(null, form({ invite: created!.token!, name: "Again", timeZone: "America/Chicago" }))).toMatchObject({
+      error: expect.stringContaining("already been used"),
+    });
   });
 });
