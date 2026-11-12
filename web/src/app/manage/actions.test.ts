@@ -13,12 +13,28 @@ const state = vi.hoisted(() => ({
   }) as (pages: Uint8Array[]) => Promise<unknown>,
   kept: [] as string[],
   deleted: [] as string[],
+  clerkUsers: [] as string[],
+  invited: [] as { emailAddress: string; redirectUrl: string }[],
+  inviteFails: false,
 }));
 
 vi.mock("@/db", async (original) => ({ ...(await original<typeof import("@/db")>()), getDb: async () => state.db }));
 vi.mock("@clerk/nextjs/server", () => ({
   auth: async () => ({ userId: state.user ? `user_${state.user.email}` : null }),
-  clerkClient: async () => ({ users: { deleteUser: async (id: string) => void state.deleted.push(id) } }),
+  clerkClient: async () => ({
+    users: {
+      deleteUser: async (id: string) => void state.deleted.push(id),
+      getUserList: async ({ emailAddress }: { emailAddress: string[] }) => ({
+        totalCount: emailAddress.filter((e) => state.clerkUsers.includes(e)).length,
+      }),
+    },
+    invitations: {
+      createInvitation: async (params: { emailAddress: string; redirectUrl: string }) => {
+        if (state.inviteFails) throw new Error("Clerk is down");
+        state.invited.push(params);
+      },
+    },
+  }),
   currentUser: async () =>
     state.user && {
       firstName: "Lee",
@@ -34,6 +50,7 @@ vi.mock("next/headers", () => ({
     set: (name: string, value: string) => state.cookies.set(name, value),
     delete: (name: string) => state.cookies.delete(name),
   }),
+  headers: async () => new Headers({ host: "app.example.com", "x-forwarded-proto": "https" }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/server/invoice-reader", () => ({ readInvoice: (pages: Uint8Array[]) => state.read(pages) }));
@@ -71,6 +88,9 @@ beforeEach(async () => {
   state.cookies.clear();
   state.kept = [];
   state.deleted = [];
+  state.clerkUsers = [];
+  state.invited = [];
+  state.inviteFails = false;
 });
 
 const employees = () => state.db.select().from(schema.employee);
@@ -442,5 +462,65 @@ describe("account deletion", () => {
     expect(await emailsIn(1)).toContainEqual(["Ava", null]);
     expect(await emailsIn(2)).toContainEqual(["Ava", null]);
     expect(await emailsIn(2)).toContainEqual(["Cam", "cam@example.com"]);
+  });
+});
+
+const { inviteEmployeeAction } = await import("./actions");
+const { getMyPinAction } = await import("../schedule/actions");
+
+describe("email invites and self-serve PINs", () => {
+  const ava = async () => (await employees()).find((e) => e.displayName === "Ava")!;
+
+  it("adds the person without a PIN and emails a sign-up invite", async () => {
+    state.user = { email: "owner@example.com" };
+    const result = await addEmployeeAction(null, form({ displayName: "Ava", email: "Ava@Example.com", mode: "invite" }));
+    expect(result).toMatchObject({ success: expect.stringContaining("Invite emailed to ava@example.com") });
+    expect(result?.pin).toBeUndefined();
+    expect(state.invited).toEqual([
+      expect.objectContaining({ emailAddress: "ava@example.com", redirectUrl: "https://app.example.com/sign-up" }),
+    ]);
+    expect((await ava()).pinDigest).toBeNull();
+  });
+
+  it("needs an email to invite, and adds nobody when the email can't be sent", async () => {
+    state.user = { email: "owner@example.com" };
+    expect(await addEmployeeAction(null, form({ displayName: "Ava", email: "", mode: "invite" }))).toMatchObject({
+      error: expect.stringContaining("email"),
+    });
+    state.inviteFails = true;
+    expect(
+      await addEmployeeAction(null, form({ displayName: "Ava", email: "ava@example.com", mode: "invite" })),
+    ).toMatchObject({ error: expect.stringContaining("Couldn't send") });
+    expect(await ava()).toBeUndefined();
+  });
+
+  it("doesn't invite someone who already has a login", async () => {
+    state.user = { email: "owner@example.com" };
+    await addEmployeeAction(null, form({ displayName: "Ava", email: "ava@example.com" }));
+    state.clerkUsers = ["ava@example.com"];
+    const result = await inviteEmployeeAction(null, form({ id: (await ava()).id }));
+    expect(result).toMatchObject({ success: expect.stringContaining("already has a Metzey login") });
+    expect(state.invited).toEqual([]);
+  });
+
+  it("lets only the signed-in employee get their own PIN, and a new one replaces the old", async () => {
+    state.user = { email: "owner@example.com" };
+    await addEmployeeAction(null, form({ displayName: "Ava", email: "ava@example.com", mode: "invite" }));
+
+    state.user = null;
+    await expect(getMyPinAction()).rejects.toThrow("REDIRECT /");
+    state.user = { email: "stranger@example.com" };
+    await expect(getMyPinAction()).rejects.toThrow("REDIRECT /");
+    expect((await ava()).pinDigest).toBeNull();
+
+    state.user = { email: "ava@example.com" };
+    const first = await getMyPinAction();
+    expect(first?.pin).toMatch(/^\d{4}$/);
+    const second = await getMyPinAction();
+    expect(second?.pin).toMatch(/^\d{4}$/);
+    const digest = (await ava()).pinDigest;
+    expect(digest).not.toBeNull();
+    expect(digest).not.toBe(second?.pin);
+    expect((await employees()).filter((e) => e.pinDigest === digest)).toHaveLength(1);
   });
 });

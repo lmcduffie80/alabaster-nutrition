@@ -1,7 +1,7 @@
 import { Badge, Card, ColorDot, employeeColor, Field, inputClass, SectionTitle } from "@/components/ui";
 import { withManager } from "@/lib/server/session";
 import { listEmployees, type Employee } from "@/lib/server/team";
-import { addEmployeeAction, setActiveAction, setPinAction, updateEmployeeAction } from "../actions";
+import { addEmployeeAction, inviteEmployeeAction, setActiveAction, setPinAction, updateEmployeeAction } from "../actions";
 import { ActionForm, SubmitButton } from "../forms";
 
 export default async function TeamPage() {
@@ -31,8 +31,17 @@ export default async function TeamPage() {
                 <input name="email" type="email" className={inputClass} autoComplete="off" />
               </Field>
             </div>
-            <SubmitButton>Add and create PIN</SubmitButton>
+            <SubmitButton name="mode" value="invite">
+              Add and email invite
+            </SubmitButton>
+            <SubmitButton variant="secondary" name="mode" value="pin">
+              Add and create PIN
+            </SubmitButton>
           </ActionForm>
+          <p className="mt-2 text-xs text-ink/50">
+            An email invite lets them sign up on their phone and get a PIN only they see. Or create one now and tell
+            them yourself.
+          </p>
         </Card>
 
         <SectionTitle>Active ({active.length})</SectionTitle>
@@ -129,6 +138,14 @@ function EmployeeCard({ employee }: { employee: Employee }) {
               </SubmitButton>
             )}
           </ActionForm>
+
+          {employee.role !== "manager" && employee.email && (
+            <ActionForm action={inviteEmployeeAction} className="flex flex-wrap items-center gap-3">
+              <input type="hidden" name="id" value={employee.id} />
+              <SubmitButton variant="secondary">Email them an invite</SubmitButton>
+              <span className="text-xs text-ink/50">They sign up and pick up their own PIN on their phone.</span>
+            </ActionForm>
+          )}
 
           {employee.role !== "manager" && (
             <ActionForm
