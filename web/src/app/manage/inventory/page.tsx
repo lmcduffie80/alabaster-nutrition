@@ -104,7 +104,11 @@ export default async function StockPage({ searchParams }: PageProps<"/manage/inv
                           {r.unitCost === null ? <span className="text-ink/40">No price</span> : formatMoney(r.unitCost)}
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums">{formatMoney(r.value)}</td>
-                        <td className="px-4 py-2 text-ink/70">{r.lastCountedAt ? formatDay(localDateOf(r.lastCountedAt, timeZone)) : "—"}</td>
+                        <td className="px-4 py-2 text-ink/70">{r.lastCountedAt
+                            ? formatDay(localDateOf(r.lastCountedAt, timeZone))
+                            : r.startingOn
+                              ? `Started ${formatDay(r.startingOn)}`
+                              : "—"}</td>
                       </tr>
                     ))}
                 </tbody>

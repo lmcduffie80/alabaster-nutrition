@@ -4,7 +4,6 @@ import { z } from "zod";
 import { schema, type Db } from "@/db";
 import {
   countDue,
-  deliveryCounts,
   isLow,
   itemTypes,
   onHand,
@@ -12,9 +11,11 @@ import {
   parseQuantity,
   reorderAmount,
   round2,
+  stockBase,
   stockValue,
   unitCost,
   type ItemType,
+  type StartingStock,
 } from "@/lib/domain/inventory";
 import { isLocalDate, localDateOf, type LocalDate } from "@/lib/domain/time";
 import { getBusiness } from "./business";
@@ -148,6 +149,10 @@ export async function setSupplierActive(db: Db, id: string, active: boolean) {
 
 export type Item = typeof inventoryItem.$inferSelect & { spotName: string; supplierName: string | null };
 
+export function startingStock(item: Pick<Item, "startingQuantity" | "startingOn">): StartingStock | null {
+  return item.startingQuantity !== null && item.startingOn ? { quantity: item.startingQuantity, on: item.startingOn } : null;
+}
+
 /** Everything as typed into the item form. */
 export type ItemInput = {
   name: string;
@@ -197,9 +202,14 @@ async function parseItem(db: Db, input: ItemInput) {
 
   const packSize = amount(input.packSize || "1", "Pack size", { required: true })!;
   if (packSize <= 0) throw new UserError("Pack size must be more than 0.");
-  const reorderAt = amount(input.reorderAt, "The reorder level", { required: true })!;
-  const orderUpTo = amount(input.orderUpTo, "The order-up-to level", { required: true })!;
-  if (orderUpTo <= reorderAt) throw new UserError("“Order up to” must be more than “Reorder at”.");
+  const reorderAt = amount(input.reorderAt, "The reorder level");
+  const orderUpTo = amount(input.orderUpTo, "The order-up-to level");
+  if ((reorderAt === null) !== (orderUpTo === null)) {
+    throw new UserError("Enter both “Reorder at” and “Order up to”, or leave both blank for no low-stock alerts.");
+  }
+  if (reorderAt !== null && orderUpTo !== null && orderUpTo <= reorderAt) {
+    throw new UserError("“Order up to” must be more than “Reorder at”.");
+  }
   const defaultUnitCost = amount(input.defaultUnitCost, "Cost");
 
   return { name, type: input.type as ItemType, unit, spotId: spot.id, supplierId, supplierCode, packSize, reorderAt, orderUpTo, defaultUnitCost };
@@ -605,6 +615,77 @@ export async function recordDelivery(db: Db, input: DeliveryInput, who: { actor:
   );
 }
 
+/** A receipt line that becomes a new item. Quantities are in the new item's count unit. */
+export type ReceiptItemInput = {
+  item: Omit<ItemInput, "supplierId" | "supplierCode">;
+  invoiceCode: string;
+  invoiceDescription: string;
+  received: string;
+  onHand: string;
+  lineTotal: string;
+};
+
+export type ReceiptItemsInput = {
+  delivery: Omit<DeliveryInput, "lines" | "onShelfForCount">;
+  /** Lines for items that already exist. */
+  existing: DeliveryLineInput[];
+  created: ReceiptItemInput[];
+};
+
+/**
+ * Sets up items from a scanned receipt: each new item gets the supplier's code and a starting quantity as of
+ * the receipt date, and the receipt is saved as a delivery (which the starting quantity already includes).
+ * A problem on any line saves nothing.
+ */
+export async function createItemsFromReceipt(db: Db, input: ReceiptItemsInput, who: { actor: string; now: Date }) {
+  return db.transaction((tx) => saveReceiptItems(tx as unknown as Db, input, who));
+}
+
+async function saveReceiptItems(db: Db, input: ReceiptItemsInput, who: { actor: string; now: Date }) {
+  if (input.created.length === 0) throw new UserError("Choose at least one line to add as a new item.");
+  if (input.created.length + input.existing.length > MAX_DELIVERY_LINES) {
+    throw new UserError(`A receipt can have up to ${MAX_DELIVERY_LINES} lines.`);
+  }
+  const receivedOn = input.delivery.receivedOn;
+  if (!isLocalDate(receivedOn)) throw new UserError("Enter the date on the receipt.");
+  if (receivedOn > (await businessToday(db, who.now))) throw new UserError("The receipt date can't be in the future.");
+
+  const lines: DeliveryLineInput[] = [...input.existing];
+  const itemIds: string[] = [];
+  for (const line of input.created) {
+    const label = line.item.name.trim() || line.invoiceDescription.trim() || "A new item";
+    const starting = amount(line.onHand, `${label}, on hand`);
+    if (starting === null) throw new UserError(`${label}: enter how many are on hand now.`);
+    let id: string;
+    try {
+      id = await addItem(db, {
+        ...line.item,
+        supplierId: input.delivery.supplierId,
+        supplierCode: input.delivery.supplierId ? line.invoiceCode : "",
+      });
+    } catch (error) {
+      if (error instanceof UserError) throw new UserError(`${label}: ${error.message}`);
+      throw error;
+    }
+    await db.update(inventoryItem).set({ startingQuantity: starting, startingOn: receivedOn }).where(eq(inventoryItem.id, id));
+    itemIds.push(id);
+    if (line.received.trim()) {
+      lines.push({
+        itemId: id,
+        quantity: line.received,
+        lineTotal: line.lineTotal,
+        invoiceCode: line.invoiceCode,
+        invoiceDescription: line.invoiceDescription,
+      });
+    }
+  }
+
+  const deliveryId = lines.length
+    ? await recordDelivery(db, { ...input.delivery, onShelfForCount: false, lines }, who)
+    : null;
+  return { deliveryId, itemIds };
+}
+
 async function deliverySnapshot(db: Db, id: string) {
   if (!isId(id)) return null;
   const [header] = await db
@@ -758,19 +839,28 @@ export async function liveDeliveryLines(db: Db) {
 
 export async function stockRows(db: Db): Promise<StockRow[]> {
   const [items, counts, lines, { timeZone }] = await Promise.all([listItems(db), lastCounts(db), liveDeliveryLines(db), getBusiness(db)]);
+  const bases = new Map(
+    items.map((item) => {
+      const last = counts.get(item.id);
+      return [
+        item.id,
+        stockBase(
+          last ? { quantity: last.quantity, countedOn: localDateOf(last.at, timeZone) } : null,
+          startingStock(item),
+        ),
+      ];
+    }),
+  );
   const received = new Map<string, number>();
   const latestCost = new Map<string, number>();
   for (const line of lines) {
     const cost = unitCost(line.lineTotal, line.quantity);
     if (cost !== null) latestCost.set(line.itemId, cost);
-    const last = counts.get(line.itemId);
-    if (last && deliveryCounts(line.receivedOn, line.onShelfForCount, localDateOf(last.at, timeZone))) {
-      received.set(line.itemId, (received.get(line.itemId) ?? 0) + line.quantity);
-    }
+    if (bases.get(line.itemId)?.adds(line)) received.set(line.itemId, (received.get(line.itemId) ?? 0) + line.quantity);
   }
   return items.map((item) => {
     const last = counts.get(item.id);
-    const quantity = onHand(last?.quantity ?? null, received.get(item.id));
+    const quantity = onHand(bases.get(item.id)?.quantity ?? null, received.get(item.id));
     const cost = latestCost.get(item.id) ?? item.defaultUnitCost;
     return {
       ...item,

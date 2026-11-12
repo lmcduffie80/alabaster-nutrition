@@ -5,6 +5,7 @@ import {
   addSpot,
   addSupplier,
   cancelCount,
+  createItemsFromReceipt,
   fixCountLine,
   moveSpot,
   removeSpot,
@@ -194,6 +195,65 @@ export async function recordDeliveryAction(_: FormState, form: FormData) {
     console.error("Couldn't keep invoice photos; they'll expire in a day", error);
   }
   redirect(`/manage/inventory/deliveries/${id}`);
+}
+
+const receiptItemsSchema = z.object({
+  existing: linesSchema,
+  created: z
+    .array(
+      z.object({
+        item: z.object({
+          name: z.string(),
+          type: z.string(),
+          unit: z.string(),
+          spotId: z.string(),
+          packSize: z.string(),
+          reorderAt: z.string(),
+          orderUpTo: z.string(),
+          defaultUnitCost: z.string(),
+        }),
+        invoiceCode: z.string(),
+        invoiceDescription: z.string(),
+        received: z.string(),
+        onHand: z.string(),
+        lineTotal: z.string(),
+      }),
+    )
+    .max(200),
+});
+
+export async function createItemsFromReceiptAction(_: FormState, form: FormData) {
+  let photos: string[] = [];
+  const result = await managerForm(form, async (manager, db) => {
+    let lines: z.infer<typeof receiptItemsSchema>;
+    try {
+      lines = receiptItemsSchema.parse(JSON.parse(text(form, "receipt") || "{}"));
+    } catch {
+      throw new UserError("Something on the form didn't come through. Refresh and scan again.");
+    }
+    const now = new Date();
+    const { deliveryId } = await createItemsFromReceipt(
+      db,
+      {
+        delivery: {
+          supplierId: text(form, "supplierId"),
+          invoiceNumber: text(form, "invoiceNumber"),
+          invoiceTotal: text(form, "invoiceTotal"),
+          receivedOn: text(form, "receivedOn"),
+        },
+        ...lines,
+      },
+      { actor: manager.actor, now },
+    );
+    if (deliveryId) photos = await attachPhotos(db, deliveryId, photoIds(form), now);
+  }, { paths });
+  if (result?.error) return result;
+  try {
+    await keepPhotos(photos);
+  } catch (error) {
+    console.error("Couldn't keep invoice photos; they'll expire in a day", error);
+  }
+  redirect("/manage/inventory/items?added=receipt");
 }
 
 export async function updateDeliveryAction(_: FormState, form: FormData) {

@@ -256,9 +256,16 @@ export const inventoryItem = pgTable(
     supplierCode: text("supplier_code"),
     /** Count units in one invoice unit (1 case = 20 sleeves). */
     packSize: quantity("pack_size").notNull().default(1),
-    reorderAt: quantity("reorder_at").notNull(),
-    orderUpTo: quantity("order_up_to").notNull(),
+    /** Both set, or both null for no low-stock alerts. */
+    reorderAt: quantity("reorder_at"),
+    orderUpTo: quantity("order_up_to"),
     defaultUnitCost: quantity("default_unit_cost"),
+    /**
+     * What was on hand on `startingOn` (business-local), including that day's deliveries. Stands in for a count
+     * until the item's first real one.
+     */
+    startingQuantity: quantity("starting_quantity"),
+    startingOn: date("starting_on", { mode: "string" }),
     active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
   },

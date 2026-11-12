@@ -13,7 +13,7 @@ import {
 } from "@/lib/domain/inventory";
 import { addDays, localDateOf, weekStartOf, type LocalDate } from "@/lib/domain/time";
 import { getBusiness } from "./business";
-import { liveDeliveryLines, listItems, stockRows } from "./inventory";
+import { liveDeliveryLines, listItems, startingStock, stockRows } from "./inventory";
 
 const { inventoryCount, inventoryCountLine, delivery, deliveryLine, supplier } = schema;
 
@@ -65,7 +65,11 @@ export async function usageReport(db: Db, toCountId?: string): Promise<UsageRepo
     listItems(db, { includeInactive: true }),
     stockRows(db),
   ]);
-  const periods = usagePeriods(counts, deliveries);
+  const starting = new Map(items.flatMap((item) => {
+    const stock = startingStock(item);
+    return stock ? [[item.id, stock] as const] : [];
+  }));
+  const periods = usagePeriods(counts, deliveries, starting);
   const costs = new Map(stock.map((r) => [r.id, r.unitCost]));
   const index = toCountId ? periods.findIndex((p) => p.toCountId === toCountId) : periods.length - 1;
   const current = periods[index];
