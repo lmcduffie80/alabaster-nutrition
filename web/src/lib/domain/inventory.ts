@@ -25,13 +25,30 @@ export function countDue(input: { now: Date; weekday: number; timeZone: string; 
   return input.lastFinishedAt === null || input.lastFinishedAt < dueFrom;
 }
 
-export function isLow(onHand: number | null, reorderAt: number) {
-  return onHand !== null && onHand <= reorderAt;
+/** Never low without a reorder level. */
+export function isLow(onHand: number | null, reorderAt: number | null) {
+  return onHand !== null && reorderAt !== null && onHand <= reorderAt;
 }
 
 /** Whole units needed to get back to `orderUpTo`. */
-export function reorderAmount(onHand: number | null, orderUpTo: number) {
+export function reorderAmount(onHand: number | null, orderUpTo: number | null) {
+  if (orderUpTo === null) return 0;
   return Math.max(0, Math.ceil(round2(orderUpTo - (onHand ?? 0))));
+}
+
+/**
+ * Where on-hand stock is measured from: the last count, or the starting stock when it is newer (an item
+ * set up from a receipt and not counted since). Also says which deliveries came after it.
+ */
+export function stockBase(
+  lastCount: { quantity: number; countedOn: LocalDate } | null,
+  starting: StartingStock | null,
+): { quantity: number; adds: (line: Pick<ReceivedLine, "receivedOn" | "onShelfForCount">) => boolean } | null {
+  if (lastCount && (!starting || lastCount.countedOn >= starting.on)) {
+    return { quantity: lastCount.quantity, adds: (l) => deliveryCounts(l.receivedOn, l.onShelfForCount, lastCount.countedOn) };
+  }
+  if (starting) return { quantity: starting.quantity, adds: (l) => l.receivedOn > starting.on };
+  return null;
 }
 
 /** Last counted quantity plus what has been received since; `null` if never counted. */
@@ -73,6 +90,8 @@ export function formatMoney(value: number | null) {
 }
 
 export type FinishedCount = { id: string; countedOn: LocalDate; quantities: Map<string, number | null> };
+/** On hand on `on`, including that day's deliveries. */
+export type StartingStock = { quantity: number; on: LocalDate };
 export type ReceivedLine = { itemId: string; quantity: number; receivedOn: LocalDate; onShelfForCount: boolean };
 export type UsagePeriod = {
   fromCountId: string;
@@ -87,23 +106,27 @@ export type UsagePeriod = {
  * Usage between each pair of consecutive finished counts (oldest first):
  * what was there at the start, plus what arrived in between, minus what was left.
  */
-export function usagePeriods(counts: FinishedCount[], deliveries: ReceivedLine[]): UsagePeriod[] {
+export function usagePeriods(
+  counts: FinishedCount[],
+  deliveries: ReceivedLine[],
+  starting: Map<string, StartingStock> = new Map(),
+): UsagePeriod[] {
   const periods: UsagePeriod[] = [];
   for (let i = 1; i < counts.length; i++) {
     const before = counts[i - 1];
     const after = counts[i];
-    const received = new Map<string, number>();
-    for (const line of deliveries) {
-      const inBetween =
-        deliveryCounts(line.receivedOn, line.onShelfForCount, before.countedOn) &&
-        !deliveryCounts(line.receivedOn, line.onShelfForCount, after.countedOn);
-      if (inBetween) received.set(line.itemId, (received.get(line.itemId) ?? 0) + line.quantity);
-    }
+    // An item new since `before` starts from its starting stock, if it has one from within the period.
     const lines: UsagePeriod["lines"] = new Map();
     for (const itemId of new Set([...before.quantities.keys(), ...after.quantities.keys()])) {
-      const start = before.quantities.get(itemId) ?? null;
+      const stock = starting.get(itemId);
+      const fromStarting =
+        !before.quantities.has(itemId) && stock !== undefined && stock.on >= before.countedOn && stock.on <= after.countedOn;
+      const start = fromStarting ? stock.quantity : (before.quantities.get(itemId) ?? null);
       const end = after.quantities.get(itemId) ?? null;
-      const got = round2(received.get(itemId) ?? 0);
+      const inBetween = (l: ReceivedLine) =>
+        (fromStarting ? l.receivedOn > stock.on : deliveryCounts(l.receivedOn, l.onShelfForCount, before.countedOn)) &&
+        !deliveryCounts(l.receivedOn, l.onShelfForCount, after.countedOn);
+      const got = round2(deliveries.filter((l) => l.itemId === itemId && inBetween(l)).reduce((sum, l) => sum + l.quantity, 0));
       lines.set(itemId, { start, received: got, end, used: start === null || end === null ? null : round2(start + got - end) });
     }
     periods.push({ fromCountId: before.id, toCountId: after.id, from: before.countedOn, to: after.countedOn, lines });

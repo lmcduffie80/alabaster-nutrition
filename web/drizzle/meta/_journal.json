@@ -50,6 +50,13 @@
       "when": 1794416256022,
       "tag": "0006_attendance",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794497430887,
+      "tag": "0007_receipt_items",
+      "breakpoints": true
     }
   ]
 }

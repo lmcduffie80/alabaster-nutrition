@@ -9,6 +9,7 @@ import {
   parseMoney,
   parseQuantity,
   reorderAmount,
+  stockBase,
   stockValue,
   unitCost,
   usageFlag,
@@ -149,6 +150,39 @@ describe("usage", () => {
     expect(period.lines.get("tubs")).toEqual({ start: 4, received: 14, end: 3, used: 15 });
     expect(period.lines.get("cups")).toEqual({ start: 10, received: 0, end: null, used: null });
     expect(usagePeriods(counts.slice(0, 1), deliveries)).toEqual([]);
+  });
+
+  it("starts an item set up from a receipt at its starting stock, which already includes that day's receipt", () => {
+    const counts = [count("a", "2026-11-01", { tubs: 4 }), count("b", "2026-11-08", { tubs: 3, mango: 2 })];
+    const deliveries = [
+      { itemId: "mango", quantity: 6, receivedOn: "2026-11-03", onShelfForCount: false }, // the receipt itself
+      { itemId: "mango", quantity: 4, receivedOn: "2026-11-05", onShelfForCount: false },
+    ];
+    const starting = new Map([["mango", { quantity: 7, on: "2026-11-03" }]]);
+    const [period] = usagePeriods(counts, deliveries, starting);
+    expect(period.lines.get("mango")).toEqual({ start: 7, received: 4, end: 2, used: 9 });
+    expect(usagePeriods(counts, deliveries)[0].lines.get("mango")).toMatchObject({ start: null, used: null });
+  });
+});
+
+describe("stock base", () => {
+  const line = (receivedOn: string, onShelfForCount = false) => ({ receivedOn, onShelfForCount });
+
+  it("uses starting stock until a count on or after its date", () => {
+    const starting = { quantity: 5, on: "2026-11-10" };
+    const fromStart = stockBase(null, starting)!;
+    expect(fromStart.quantity).toBe(5);
+    expect(fromStart.adds(line("2026-11-10"))).toBe(false);
+    expect(fromStart.adds(line("2026-11-11"))).toBe(true);
+
+    expect(stockBase({ quantity: 2, countedOn: "2026-11-10" }, starting)!.quantity).toBe(2);
+    expect(stockBase({ quantity: 9, countedOn: "2026-11-01" }, starting)!.quantity).toBe(5);
+    expect(stockBase(null, null)).toBeNull();
+  });
+
+  it("never flags an item without a reorder level", () => {
+    expect(isLow(0, null)).toBe(false);
+    expect(reorderAmount(1, null)).toBe(0);
   });
 
   it("flags impossible counts, and usage well above the last four periods", () => {

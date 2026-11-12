@@ -20,6 +20,7 @@ export type ScannedLine = {
   invoiceDescription?: string;
   /** As printed; converted with the chosen item's pack size. */
   invoiceQuantity: number | null;
+  invoiceUnit?: string;
 };
 
 export type ScanPrefill = {
@@ -68,6 +69,7 @@ export async function matchInvoice(db: Db, reading: InvoiceReading, today: Local
       invoiceCode: line.itemCode?.trim() || undefined,
       invoiceDescription: line.description.trim() || undefined,
       invoiceQuantity: line.quantity,
+      invoiceUnit: line.invoiceUnit?.trim() || undefined,
     };
   });
 

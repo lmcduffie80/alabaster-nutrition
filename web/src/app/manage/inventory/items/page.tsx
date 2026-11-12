@@ -1,4 +1,5 @@
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, Camera } from "lucide-react";
+import Link from "next/link";
 import { Badge, Card, Field, inputClass, SectionTitle } from "@/components/ui";
 import { formatQuantity, itemTypeLabel, itemTypes } from "@/lib/domain/inventory";
 import { listItems, listSpots, listSuppliers, type Item, type Spot, type Supplier } from "@/lib/server/inventory";
@@ -6,7 +7,8 @@ import { withManager } from "@/lib/server/session";
 import { ActionForm, SubmitButton } from "../../forms";
 import { addItemAction, addSpotAction, setItemActiveAction, updateItemAction, updateSpotAction } from "../../inventory-actions";
 
-export default async function ItemsPage() {
+export default async function ItemsPage({ searchParams }: PageProps<"/manage/inventory/items">) {
+  const added = (await searchParams).added === "receipt";
   return withManager(async (db) => {
     const [items, spots, suppliers] = await Promise.all([
       listItems(db, { includeInactive: true }),
@@ -39,6 +41,25 @@ export default async function ItemsPage() {
         </Card>
 
         <SectionTitle>Add an item</SectionTitle>
+        {added && (
+          <p role="status" className="mb-3 rounded-lg bg-porcelain-light px-3 py-2 text-sm text-porcelain">
+            Items added from the receipt, with their starting stock. Set reorder levels below when you&rsquo;re ready.
+          </p>
+        )}
+        {spots.length > 0 && (
+          <Card className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm">
+              <p className="font-semibold">Have an itemized receipt?</p>
+              <p className="text-ink/60">Scan it to add each product with its item code and what you have on hand.</p>
+            </div>
+            <Link
+              href="/manage/inventory/items/from-receipt"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-porcelain px-3 py-2 text-sm font-semibold text-white hover:bg-porcelain-dark"
+            >
+              <Camera className="size-4" /> Add items from a receipt
+            </Link>
+          </Card>
+        )}
         <Card>
           {spots.length === 0 ? (
             <p className="text-sm text-ink/60">Add a storage spot first.</p>
@@ -165,13 +186,13 @@ function ItemFields({ item, spots, suppliers }: { item?: Item; spots: Spot[]; su
         </Field>
       </div>
       <div className="sm:col-span-2">
-        <Field label="Reorder at" hint="Flag it when the count is this low.">
-          <input name="reorderAt" defaultValue={item?.reorderAt ?? ""} required inputMode="decimal" className={inputClass} />
+        <Field label="Reorder at" hint="Optional. Flag it when stock is this low.">
+          <input name="reorderAt" defaultValue={item?.reorderAt ?? ""} inputMode="decimal" placeholder="No alerts" className={inputClass} />
         </Field>
       </div>
       <div className="sm:col-span-2">
-        <Field label="Order up to" hint="Suggested orders bring it back to this.">
-          <input name="orderUpTo" defaultValue={item?.orderUpTo ?? ""} required inputMode="decimal" className={inputClass} />
+        <Field label="Order up to" hint="Optional. Orders bring it back to this.">
+          <input name="orderUpTo" defaultValue={item?.orderUpTo ?? ""} inputMode="decimal" placeholder="No alerts" className={inputClass} />
         </Field>
       </div>
       <div className="sm:col-span-1">
@@ -204,7 +225,7 @@ function ItemCard({ item, spots, suppliers }: { item: Item; spots: Spot[]; suppl
           <span className="flex items-center gap-2 text-ink/60">
             <Badge tone={item.type === "ingredient" ? "sage" : "neutral"}>{itemTypeLabel[item.type]}</Badge>
             <span className="hidden text-xs sm:inline">
-              reorder at {formatQuantity(item.reorderAt, item.unit)}
+              {item.reorderAt === null ? "no reorder level" : `reorder at ${formatQuantity(item.reorderAt, item.unit)}`}
             </span>
             <span className="text-porcelain group-open:hidden">Edit</span>
           </span>

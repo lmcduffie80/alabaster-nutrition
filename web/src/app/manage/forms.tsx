@@ -65,16 +65,18 @@ export function SubmitButton({
   name,
   value,
   className = "",
+  disabled = false,
 }: {
   children: ReactNode;
   variant?: "primary" | "secondary" | "quiet" | "danger";
   name?: string;
   value?: string;
   className?: string;
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant={variant} name={name} value={value} disabled={pending} className={className}>
+    <Button type="submit" variant={variant} name={name} value={value} disabled={pending || disabled} className={className}>
       {children}
     </Button>
   );

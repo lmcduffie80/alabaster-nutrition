@@ -26,7 +26,9 @@ import {
   deleteDelivery,
   getDelivery,
   listDeliveries,
+  createItemsFromReceipt,
   type DeliveryInput,
+  type ReceiptItemInput,
   type ItemInput,
 } from "./inventory";
 import { schema } from "@/db";
@@ -278,5 +280,63 @@ describe("deliveries", () => {
     expect(await stockOf(itemId)).toMatchObject({ onHand: 2, unitCost: 18 });
     const audit = await db.select().from(schema.inventoryAudit);
     expect(audit.map((a) => [a.action, a.reason])).toEqual([["edit", "Short one tub"], ["delete", "Entered twice"]]);
+  });
+});
+
+describe("items from a receipt", () => {
+  const who = { actor: "owner@example.com", now: new Date("2026-11-17T15:00:00Z") };
+  const newLine = (name: string, overrides: Partial<ReceiptItemInput> = {}): ReceiptItemInput => ({
+    item: { name, type: "ingredient", unit: "bag", spotId: fridge, packSize: "1", reorderAt: "", orderUpTo: "", defaultUnitCost: "" },
+    invoiceCode: "",
+    invoiceDescription: name.toUpperCase(),
+    received: "6",
+    onHand: "6",
+    lineTotal: "30",
+    ...overrides,
+  });
+  const stockOf = async (itemId: string) => (await stockRows(db)).find((r) => r.id === itemId)!;
+
+  it("creates each item with its code and starting stock, and saves the receipt as one delivery", async () => {
+    const costco = await addSupplier(db, { name: "Costco", contact: "", notes: "" });
+    const cups = await addItem(db, item({ name: "Cups", unit: "sleeve", supplierId: costco }));
+    const countId = await startOrContinueCount(db, { employeeId: ava, now: sunday });
+    await enterCountLine(db, { countId, itemId: cups, quantity: 2, employeeId: ava, now: sunday });
+    await finishCount(db, { countId, employeeId: ava, now: sunday });
+
+    const { deliveryId, itemIds } = await createItemsFromReceipt(
+      db,
+      {
+        delivery: { supplierId: costco, invoiceNumber: "R-77", invoiceTotal: "", receivedOn: "2026-11-16" },
+        existing: [{ itemId: cups, quantity: "3", lineTotal: "12", invoiceCode: "", invoiceDescription: "CUPS" }],
+        created: [newLine("Frozen mango", { invoiceCode: "00451", onHand: "8" }), newLine("Chia seeds", { received: "" })],
+      },
+      who,
+    );
+    const [mango, chia] = itemIds;
+
+    expect(await stockOf(mango)).toMatchObject({ supplierCode: "00451", supplierId: costco, onHand: 8, unitCost: 5, reorderAt: null, low: false });
+    expect(await stockOf(chia)).toMatchObject({ onHand: 6, startingOn: "2026-11-16" });
+    expect(await stockOf(cups)).toMatchObject({ onHand: 5 });
+    const saved = await getDelivery(db, deliveryId!);
+    expect(saved?.invoiceNumber).toBe("R-77");
+    expect(saved?.lines.map((l) => l.itemId).sort()).toEqual([cups, mango].sort());
+
+    await recordDelivery(db, { supplierId: costco, invoiceNumber: "", invoiceTotal: "", receivedOn: "2026-11-17", onShelfForCount: false, lines: [{ itemId: mango, quantity: "2", lineTotal: "" }] }, who);
+    expect((await stockOf(mango)).onHand).toBe(10);
+  });
+
+  it("saves nothing when any line has a problem", async () => {
+    const costco = await addSupplier(db, { name: "Costco", contact: "", notes: "" });
+    await addItem(db, item({ name: "Mango", supplierId: costco, supplierCode: "00451" }));
+    const before = (await listItems(db)).length;
+    const attempt = (created: ReceiptItemInput[]) =>
+      createItemsFromReceipt(db, { delivery: { supplierId: costco, invoiceNumber: "", invoiceTotal: "", receivedOn: "2026-11-16" }, existing: [], created }, who);
+
+    await rejects(attempt([newLine("Chia seeds"), newLine("Strawberries", { invoiceCode: "00451" })]), /Strawberries: .*item code/);
+    await rejects(attempt([newLine("Chia seeds", { onHand: "" })]), /Chia seeds: enter how many are on hand/);
+    await rejects(attempt([newLine("Chia seeds", { item: { ...newLine("x").item, name: "Chia seeds", reorderAt: "2" } })]), /both/);
+    await rejects(attempt([]), /at least one line/);
+    expect((await listItems(db)).length).toBe(before);
+    expect(await listDeliveries(db)).toEqual([]);
   });
 });
