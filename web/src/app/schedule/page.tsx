@@ -7,6 +7,7 @@ import { getBusiness } from "@/lib/server/business";
 import { publishedShifts } from "@/lib/server/schedule";
 import { withMember } from "@/lib/server/session";
 import { listEmployees } from "@/lib/server/team";
+import { MyPin } from "./my-pin";
 
 export const metadata: Metadata = { title: "My Schedule · Metzey" };
 
@@ -45,6 +46,8 @@ export default async function EmployeeSchedulePage() {
           <p className="mt-1 font-serif text-xl font-semibold">No shifts published yet.</p>
         )}
       </FramedPanel>
+
+      <MyPin hasPin={team.get(viewer.employeeId)?.hasPin ?? false} />
 
       <SectionTitle>Your shifts</SectionTitle>
       <Card className="divide-y divide-ink/5 p-0">

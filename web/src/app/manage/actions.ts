@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { punchKinds, type PunchKind } from "@/lib/domain/punches";
 import { instantAt, isLocalDate } from "@/lib/domain/time";
 import { getBusiness, updateBusinessSettings } from "@/lib/server/business";
+import { emailEmployeeInvite, inviteMessage } from "@/lib/server/employee-invites";
 import { UserError } from "@/lib/server/errors";
 import { enrollKiosk, revokeKiosk } from "@/lib/server/kiosk";
 import { addManagerPunch, editPunchTime, getPunch, removePunch } from "@/lib/server/punches";
@@ -41,8 +42,24 @@ function localInstant(form: FormData, timeZone: string) {
 export async function addEmployeeAction(_: FormState, form: FormData) {
   return managerForm(form, async (_m, db) => {
     const id = await addEmployee(db, { displayName: text(form, "displayName"), email: text(form, "email") });
-    const pin = await assignRandomPin(db, id);
-    return { success: `${text(form, "displayName").trim()} added.`, pin };
+    if (text(form, "mode") !== "invite") {
+      const pin = await assignRandomPin(db, id);
+      return { success: `${text(form, "displayName").trim()} added.`, pin };
+    }
+    const employee = await getEmployee(db, id);
+    if (!employee?.email) throw new UserError("Add their email to send an invite.");
+    const result = await emailEmployeeInvite(employee.email);
+    return { success: inviteMessage(employee.displayName, employee.email, result) };
+  });
+}
+
+export async function inviteEmployeeAction(_: FormState, form: FormData) {
+  return managerForm(form, async (_m, db) => {
+    const employee = await getEmployee(db, text(form, "id"));
+    if (!employee?.active) throw new UserError("That person is no longer on the team.");
+    if (!employee.email) throw new UserError("Add their email first, then send the invite.");
+    const result = await emailEmployeeInvite(employee.email);
+    return { success: inviteMessage(employee.displayName, employee.email, result) };
   });
 }
 
