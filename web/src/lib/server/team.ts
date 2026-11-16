@@ -1,11 +1,11 @@
 import "server-only";
-import { and, asc, eq, isNotNull, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import { schema, type Db } from "@/db";
 import { pinProblem, pinProblemMessage } from "@/lib/domain/pins";
 import { getBusiness } from "./business";
 import { UserError } from "./errors";
-import { pinDigest, randomPin } from "./secrets";
+import { openPin, pinDigest, randomPin, sealPin } from "./secrets";
 
 export const EMPLOYEE_COLOR_COUNT = 8;
 
@@ -121,7 +121,7 @@ export async function setEmployeeActive(db: Db, id: string, active: boolean) {
   // A returning employee gets a new PIN; their old one may have been given to someone else.
   await db
     .update(schema.employee)
-    .set(active ? { active } : { active, pinDigest: null })
+    .set(active ? { active } : { active, pinDigest: null, pinSealed: null })
     .where(eq(schema.employee.id, id));
 }
 
@@ -173,10 +173,24 @@ export async function setEmployeePin(db: Db, employeeId: string, pin: string) {
   if (!employee?.active) throw new UserError("Only active employees can have a PIN.");
   const digest = pinDigest(pin);
   await assertPinFree(db, digest, employeeId);
-  await db.update(schema.employee).set({ pinDigest: digest }).where(eq(schema.employee.id, employeeId));
+  await db.update(schema.employee).set({ pinDigest: digest, pinSealed: sealPin(pin) }).where(eq(schema.employee.id, employeeId));
 }
 
-/** Picks a random PIN that follows the rules and isn't taken. Returns it once; only its digest is stored. */
+/** Each active person's PIN that can be shown; PINs set before PINs were viewable are missing. */
+export async function viewablePins(db: Db, employeeIds?: string[]): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ id: schema.employee.id, sealed: schema.employee.pinSealed })
+    .from(schema.employee)
+    .where(and(eq(schema.employee.active, true), isNotNull(schema.employee.pinSealed), employeeIds ? inArray(schema.employee.id, employeeIds) : undefined));
+  const pins = new Map<string, string>();
+  for (const row of rows) {
+    const pin = openPin(row.sealed);
+    if (pin) pins.set(row.id, pin);
+  }
+  return pins;
+}
+
+/** Picks a random PIN that follows the rules and isn't taken. */
 export async function assignRandomPin(db: Db, employeeId: string) {
   const taken = new Set(
     (
@@ -198,7 +212,7 @@ export async function assignRandomPin(db: Db, employeeId: string) {
 }
 
 export async function clearEmployeePin(db: Db, employeeId: string) {
-  await db.update(schema.employee).set({ pinDigest: null }).where(eq(schema.employee.id, employeeId));
+  await db.update(schema.employee).set({ pinDigest: null, pinSealed: null }).where(eq(schema.employee.id, employeeId));
 }
 
 export async function setManagerPin(db: Db, pin: string) {

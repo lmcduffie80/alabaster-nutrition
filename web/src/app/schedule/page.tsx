@@ -7,7 +7,7 @@ import { addDays, formatDay, formatTime, localDateOf, startOfLocalDay, weekStart
 import { getBusiness } from "@/lib/server/business";
 import { publishedShifts } from "@/lib/server/schedule";
 import { withMember } from "@/lib/server/session";
-import { listEmployees } from "@/lib/server/team";
+import { listEmployees, viewablePins } from "@/lib/server/team";
 import { setNotifyEmailAction } from "./actions";
 import { MyPin } from "./my-pin";
 import { PhoneNotifications } from "./phone-notifications";
@@ -15,14 +15,15 @@ import { PhoneNotifications } from "./phone-notifications";
 export const metadata: Metadata = { title: "My Schedule · Metzey" };
 
 export default async function EmployeeSchedulePage() {
-  const { viewer, timeZone, today, weekStart, shifts, team } = await withMember(async (db, viewer) => {
+  const { viewer, timeZone, today, weekStart, shifts, team, myPin } = await withMember(async (db, viewer) => {
     const { timeZone } = await getBusiness(db);
     const today = localDateOf(new Date(), timeZone);
     const weekStart = weekStartOf(today);
     const end = addDays(weekStart, 14);
     const shifts = await publishedShifts(db, { from: startOfLocalDay(today, timeZone), to: startOfLocalDay(end, timeZone) });
     const team = new Map((await listEmployees(db, { includeInactive: true })).map((e) => [e.id, e]));
-    return { viewer, timeZone, today, weekStart, shifts, team };
+    const myPin = (await viewablePins(db, [viewer.employeeId])).get(viewer.employeeId) ?? null;
+    return { viewer, timeZone, today, weekStart, shifts, team, myPin };
   });
   const mine = shifts.filter((s) => s.employeeId === viewer.employeeId);
   const emailsOn = team.get(viewer.employeeId)?.notifyEmail ?? true;
@@ -52,7 +53,7 @@ export default async function EmployeeSchedulePage() {
         )}
       </FramedPanel>
 
-      <MyPin hasPin={team.get(viewer.employeeId)?.hasPin ?? false} />
+      <MyPin hasPin={team.get(viewer.employeeId)?.hasPin ?? false} current={myPin} />
 
       <SectionTitle>Your shifts</SectionTitle>
       <Card className="divide-y divide-ink/5 p-0">

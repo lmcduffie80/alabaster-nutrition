@@ -28,7 +28,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Team details</strong> entered by your manager: names, emails, roles, and a 4-digit clock-in PIN. PINs
-            are stored only in scrambled (hashed) form and can&rsquo;t be read back.
+            are stored encrypted. Only you and your business&rsquo;s managers can see your PIN.
           </li>
           <li>
             <strong>Work records:</strong> clock-in and clock-out times, breaks, scheduled shifts, timesheet approvals,

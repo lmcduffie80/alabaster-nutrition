@@ -71,6 +71,13 @@
       "when": 1794796215373,
       "tag": "0009_push_devices",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794801297546,
+      "tag": "0010_viewable_pins",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 
 function secret(name: "PIN_PEPPER" | "SESSION_SECRET") {
   const value = process.env[name];
@@ -16,6 +16,33 @@ function secret(name: "PIN_PEPPER" | "SESSION_SECRET") {
  */
 export function pinDigest(pin: string) {
   return createHmac("sha256", secret("PIN_PEPPER")).update(`pin:${pin}`).digest("hex");
+}
+
+/** Derived from the pepper so viewable PINs need no extra secret; rotating the pepper retires both together. */
+function pinSealKey() {
+  return Buffer.from(hkdfSync("sha256", secret("PIN_PEPPER"), "", "metzey pin seal v1", 32));
+}
+
+/** Encrypts a PIN so the business's managers and the employee can see it again. */
+export function sealPin(pin: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", pinSealKey(), iv);
+  const sealed = Buffer.concat([cipher.update(pin, "utf8"), cipher.final()]);
+  return ["v1", iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), sealed.toString("base64url")].join(".");
+}
+
+/** The PIN, or null if it was sealed with a different key or tampered with. */
+export function openPin(sealed: string | null): string | null {
+  if (!sealed) return null;
+  const [version, iv, tag, data] = sealed.split(".");
+  if (version !== "v1" || !iv || !tag || !data) return null;
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", pinSealKey(), Buffer.from(iv, "base64url"));
+    decipher.setAuthTag(Buffer.from(tag, "base64url"));
+    return Buffer.concat([decipher.update(Buffer.from(data, "base64url")), decipher.final()]).toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 export function randomPin() {
