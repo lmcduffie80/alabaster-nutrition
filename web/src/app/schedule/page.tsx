@@ -1,6 +1,7 @@
 import { UserButton } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { LiveRefresh } from "@/components/live-refresh";
 import { Card, ColorDot, employeeColor, FramedPanel, SectionTitle, Wordmark } from "@/components/ui";
 import { addDays, formatDay, formatTime, localDateOf, startOfLocalDay, weekStartOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
@@ -27,6 +28,7 @@ export default async function EmployeeSchedulePage() {
 
   return (
     <main className="mx-auto max-w-lg px-4 py-6">
+      <LiveRefresh />
       <header className="flex items-center justify-between">
         <Wordmark business={viewer.businessName} />
         <UserButton />
