@@ -1,17 +1,9 @@
 import "server-only";
 import { clerkClient } from "@clerk/nextjs/server";
-import { headers } from "next/headers";
 import { UserError } from "./errors";
+import { siteOrigin } from "./origin";
 
 export type InviteResult = "sent" | "hasAccount";
-
-async function siteOrigin() {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (!host) throw new Error("No host header to build the invite link from.");
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
 
 /**
  * Emails a Clerk invitation whose link opens sign-up with the address already confirmed. Afterwards the person

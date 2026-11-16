@@ -7,6 +7,9 @@ import { getBusiness, updateBusinessSettings } from "@/lib/server/business";
 import { emailEmployeeInvite, inviteMessage } from "@/lib/server/employee-invites";
 import { UserError } from "@/lib/server/errors";
 import { enrollKiosk, revokeKiosk } from "@/lib/server/kiosk";
+import { deliverLater } from "@/lib/server/notify";
+import { siteOrigin } from "@/lib/server/origin";
+import { takeNotices, type ScheduleNotice } from "@/lib/server/schedule-notices";
 import { addManagerPunch, editPunchTime, getPunch, removePunch } from "@/lib/server/punches";
 import { addShift, deleteShift, publishWeek, setCalledIn, unpublishWeek } from "@/lib/server/schedule";
 import { endKioskManagerSession, setKioskCookie, withManager } from "@/lib/server/session";
@@ -188,10 +191,27 @@ export async function publishAction(_: FormState, form: FormData) {
   return managerForm(form, async (_m, db) => {
     if (text(form, "publish") === "true") {
       await publishWeek(db, text(form, "weekStart"));
-      return { success: "Published. The team can see this week now." };
+      const notices = await takeNotices(db, text(form, "weekStart"), "published");
+      deliverLater(notices, await siteOrigin());
+      return { success: `Published. The team can see this week now${notified(notices)}` };
     }
     await unpublishWeek(db, text(form, "weekStart"));
     return { success: "Unpublished. The team can no longer see this week." };
+  });
+}
+
+function notified(notices: ScheduleNotice[]) {
+  const emailed = notices.filter((n) => n.email).length;
+  return emailed ? `, and ${emailed} ${emailed === 1 ? "person was" : "people were"} emailed.` : ".";
+}
+
+export async function notifyScheduleChangesAction(_: FormState, form: FormData) {
+  return managerForm(form, async (_m, db) => {
+    const notices = await takeNotices(db, text(form, "weekStart"), "changed");
+    if (notices.length === 0) return { success: "No one's shifts changed since the last notice." };
+    deliverLater(notices, await siteOrigin());
+    const names = notices.map((n) => n.name).join(", ");
+    return { success: `Told ${names} about their changes${notified(notices)}` };
   });
 }
 

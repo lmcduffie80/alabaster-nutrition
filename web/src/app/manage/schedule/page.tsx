@@ -5,9 +5,10 @@ import { Badge, Card, ColorDot, employeeColor, Field, inputClass, SectionTitle }
 import { addDays, formatDay, formatRange, formatTime, isLocalDate, localDateOf, weekStartOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
 import { weekSchedule } from "@/lib/server/schedule";
+import { pendingChanges } from "@/lib/server/schedule-notices";
 import { withManager } from "@/lib/server/session";
 import { listEmployees } from "@/lib/server/team";
-import { addShiftAction, deleteShiftAction, publishAction } from "../actions";
+import { addShiftAction, deleteShiftAction, notifyScheduleChangesAction, publishAction } from "../actions";
 import { ActionForm, SubmitButton } from "../forms";
 
 export default async function SchedulePage({ searchParams }: PageProps<"/manage/schedule">) {
@@ -18,7 +19,7 @@ export default async function SchedulePage({ searchParams }: PageProps<"/manage/
     const weekStart = typeof requested === "string" && isLocalDate(requested) ? weekStartOf(requested) : weekStartOf(today);
     const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-    const [employees, week] = await Promise.all([listEmployees(db), weekSchedule(db, weekStart)]);
+    const [employees, week, pending] = await Promise.all([listEmployees(db), weekSchedule(db, weekStart), pendingChanges(db, weekStart)]);
     const scheduledIds = new Set(week.shifts.map((s) => s.employeeId));
     const rows = [
       ...employees,
@@ -65,8 +66,28 @@ export default async function SchedulePage({ searchParams }: PageProps<"/manage/
             )}
           </ActionForm>
         </div>
-        {week.publishedAt && (
+        {week.publishedAt && !pending.neverNotified && pending.changed.length === 0 && (
           <p className="mt-2 text-xs text-ink/60">Changes to a published week show up for the team right away.</p>
+        )}
+        {week.publishedAt && (pending.neverNotified || pending.changed.length > 0) && (
+          <Card className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm">
+              {pending.neverNotified ? (
+                "The team hasn't been sent this week's schedule."
+              ) : (
+                <>
+                  {pending.changed.length === 1 ? "1 person's shifts" : `${pending.changed.length} people's shifts`} changed since the
+                  team was last told:{" "}
+                  <strong>{pending.changed.map((id) => rows.find((e) => e.id === id)?.displayName ?? "Someone").join(", ")}</strong>.
+                </>
+              )}
+              <span className="block text-xs text-ink/60">They can see it now. Let them know when you&rsquo;re done editing.</span>
+            </p>
+            <ActionForm action={notifyScheduleChangesAction}>
+              <input type="hidden" name="weekStart" value={weekStart} />
+              <SubmitButton>{pending.neverNotified ? "Send this week's schedule" : "Notify team of changes"}</SubmitButton>
+            </ActionForm>
+          </Card>
         )}
 
         <div className="mt-5 overflow-x-auto">

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@/db";
 import { openBusinessDatabase } from "@/test/businesses";
 import { schema } from "@/db";
+import { eq } from "drizzle-orm";
 
 const state = vi.hoisted(() => ({
   db: null as unknown as Db,
@@ -16,6 +17,11 @@ const state = vi.hoisted(() => ({
   clerkUsers: [] as string[],
   invited: [] as { emailAddress: string; redirectUrl: string }[],
   inviteFails: false,
+  delivered: [] as { name: string; email: string | null; kind: string; shifts: string[] }[][],
+}));
+
+vi.mock("@/lib/server/notify", () => ({
+  deliverLater: (notices: (typeof state.delivered)[number]) => void state.delivered.push(notices),
 }));
 
 vi.mock("@/db", async (original) => ({ ...(await original<typeof import("@/db")>()), getDb: async () => state.db }));
@@ -91,6 +97,7 @@ beforeEach(async () => {
   state.clerkUsers = [];
   state.invited = [];
   state.inviteFails = false;
+  state.delivered = [];
 });
 
 const employees = () => state.db.select().from(schema.employee);
@@ -522,5 +529,62 @@ describe("email invites and self-serve PINs", () => {
     expect(digest).not.toBeNull();
     expect(digest).not.toBe(second?.pin);
     expect((await employees()).filter((e) => e.pinDigest === digest)).toHaveLength(1);
+  });
+});
+
+const { addShiftAction, deleteShiftAction, notifyScheduleChangesAction, publishAction } = await import("./actions");
+const { setNotifyEmailAction } = await import("../schedule/actions");
+
+describe("schedule notices", () => {
+  const week = "2026-11-16";
+  const idOf = async (name: string) => (await employees()).find((e) => e.displayName === name)!.id;
+  const shift = async (name: string, date: string, start = "09:00", end = "13:00") =>
+    expect(await addShiftAction(null, form({ employeeId: await idOf(name), date, start, end, position: "" }))).not.toHaveProperty("error");
+  const told = (batch: (typeof state.delivered)[number]) => batch.map((n) => [n.name, n.email]).sort();
+
+  beforeEach(async () => {
+    state.user = { email: "owner@example.com" };
+    await addEmployeeAction(null, form({ displayName: "Ava", email: "ava@example.com" }));
+    await addEmployeeAction(null, form({ displayName: "Sam", email: "sam@example.com" }));
+    await addEmployeeAction(null, form({ displayName: "Kim", email: "" }));
+  });
+
+  it("tells everyone scheduled when a week is published, then only the people a later edit affects", async () => {
+    await shift("Ava", "2026-11-17");
+    await shift("Sam", "2026-11-18");
+    await shift("Kim", "2026-11-18");
+    const published = await publishAction(null, form({ weekStart: week, publish: "true" }));
+    expect(published?.success).toContain("2 people were emailed");
+    expect(told(state.delivered[0])).toEqual([["Ava", "ava@example.com"], ["Kim", null], ["Sam", "sam@example.com"]]);
+    expect(state.delivered[0].find((n) => n.name === "Ava")?.shifts).toEqual(["Tue, Nov 17 · 9:00 AM – 1:00 PM"]);
+
+    expect(await notifyScheduleChangesAction(null, form({ weekStart: week }))).toMatchObject({ success: expect.stringContaining("No one") });
+    expect(state.delivered).toHaveLength(1);
+
+    await shift("Ava", "2026-11-19");
+    const [samShift] = await state.db.select().from(schema.shift).where(eq(schema.shift.employeeId, await idOf("Sam")));
+    await deleteShiftAction(null, form({ id: samShift.id }));
+    const notice = await notifyScheduleChangesAction(null, form({ weekStart: week }));
+    expect(notice?.success).toContain("Told");
+    expect(told(state.delivered[1])).toEqual([["Ava", "ava@example.com"], ["Sam", "sam@example.com"]]);
+    expect(state.delivered[1].every((n) => n.kind === "changed")).toBe(true);
+    expect(state.delivered[1].find((n) => n.name === "Sam")?.shifts).toEqual([]);
+  });
+
+  it("respects an employee turning schedule emails off", async () => {
+    await shift("Ava", "2026-11-17");
+    state.user = { email: "ava@example.com" };
+    const off = new FormData();
+    off.set("on", "false");
+    await setNotifyEmailAction(off);
+    state.user = { email: "owner@example.com" };
+    await publishAction(null, form({ weekStart: week, publish: "true" }));
+    expect(told(state.delivered[0])).toEqual([["Ava", null]]);
+  });
+
+  it("won't notify about a week that isn't published", async () => {
+    await shift("Ava", "2026-11-17");
+    expect(await notifyScheduleChangesAction(null, form({ weekStart: week }))).toMatchObject({ error: "Publish the week first." });
+    expect(state.delivered).toEqual([]);
   });
 });
