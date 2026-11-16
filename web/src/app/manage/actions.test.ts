@@ -554,7 +554,7 @@ describe("schedule notices", () => {
     await shift("Sam", "2026-11-18");
     await shift("Kim", "2026-11-18");
     const published = await publishAction(null, form({ weekStart: week, publish: "true" }));
-    expect(published?.success).toContain("2 people were emailed");
+    expect(published?.success).toContain("2 people were notified");
     expect(told(state.delivered[0])).toEqual([["Ava", "ava@example.com"], ["Kim", null], ["Sam", "sam@example.com"]]);
     expect(state.delivered[0].find((n) => n.name === "Ava")?.shifts).toEqual(["Tue, Nov 17 · 9:00 AM – 1:00 PM"]);
 

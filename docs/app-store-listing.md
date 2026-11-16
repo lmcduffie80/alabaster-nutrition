@@ -98,6 +98,22 @@ Diagnostics, Purchases, or Sensitive Info.
   > from app.alabasternutrition.com/account).
   >
   > The camera is used only when the manager chooses to photograph a delivery invoice.
+  >
+  > Notifications (1.1): employees can turn on schedule notifications from their schedule page ("Notify me on
+  > this phone"). The app asks for permission only when they tap Turn on. A notification is sent when a manager
+  > publishes a week or taps "Notify team of changes" on the Schedule tab, and only to people whose shifts
+  > changed. Tapping it opens the schedule. Nothing promotional is ever sent.
+
+## Version 1.1
+
+- **What's New**:
+
+  > Schedule notifications: get a notification and an email when your shifts are published or change. Schedules
+  > also refresh on their own while open.
+
+- **Build**: 3. Signing note: the archive is built unsigned, then ad-hoc signed with
+  `aps-environment = production` before `xcodebuild -exportArchive`, because the team has no registered devices
+  for a development profile and an unsigned archive would lose the push entitlement.
 
 - **Export compliance**: the app declares no non-exempt encryption (`ITSAppUsesNonExemptEncryption = NO`), so
   App Store Connect won't ask.

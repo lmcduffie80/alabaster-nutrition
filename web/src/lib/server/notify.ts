@@ -1,6 +1,10 @@
 import "server-only";
 import { after } from "next/server";
+import { getDb } from "@/db";
+import { withBusiness } from "@/db/tenant";
 import { escapeHtml, sendEmail, type Email } from "./email";
+import { sendPush, type PushMessage } from "./push";
+import { forgetTokens } from "./push-devices";
 import { noticeBody, noticeTitle, type ScheduleNotice } from "./schedule-notices";
 
 export function scheduleEmail(notice: ScheduleNotice & { email: string }, origin: string): Email {
@@ -22,14 +26,28 @@ ${items}
   return { to: notice.email, subject, text, html };
 }
 
-/** Sends each notice by email, after the response so the manager never waits. */
+export function schedulePush(notice: ScheduleNotice): PushMessage {
+  const body = notice.shifts.length > 3 ? `${notice.shifts.slice(0, 3).join("\n")}\n+${notice.shifts.length - 3} more` : noticeBody(notice);
+  return { title: `${noticeTitle(notice)} · ${notice.businessName}`, body, path: "/schedule" };
+}
+
+/** Sends each notice by email and to the person's phones, after the response so the manager never waits. */
 export function deliverLater(notices: ScheduleNotice[], origin: string) {
   if (notices.length === 0) return;
   after(async () => {
+    const invalid: string[] = [];
     await Promise.all(
       notices.map(async (notice) => {
-        if (notice.email) await sendEmail(scheduleEmail({ ...notice, email: notice.email }, origin));
+        await Promise.all([
+          notice.email ? sendEmail(scheduleEmail({ ...notice, email: notice.email }, origin)) : null,
+          sendPush(notice.devices, schedulePush(notice)).then((result) => invalid.push(...result.invalid)),
+        ]);
       }),
     );
+    if (invalid.length) {
+      await withBusiness(await getDb(), notices[0].businessId, (db) => forgetTokens(db, invalid)).catch((error) =>
+        console.error("Couldn't forget expired push tokens", error),
+      );
+    }
   });
 }

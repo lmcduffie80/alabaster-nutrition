@@ -201,8 +201,8 @@ export async function publishAction(_: FormState, form: FormData) {
 }
 
 function notified(notices: ScheduleNotice[]) {
-  const emailed = notices.filter((n) => n.email).length;
-  return emailed ? `, and ${emailed} ${emailed === 1 ? "person was" : "people were"} emailed.` : ".";
+  const reached = notices.filter((n) => n.email || n.devices.length).length;
+  return reached ? `, and ${reached} ${reached === 1 ? "person was" : "people were"} notified.` : ".";
 }
 
 export async function notifyScheduleChangesAction(_: FormState, form: FormData) {

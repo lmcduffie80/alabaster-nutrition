@@ -5,6 +5,7 @@ import { changedEmployees, snapshotOf, type WeekSnapshot } from "@/lib/domain/sc
 import { addDays, formatDay, formatRange, formatTime, isLocalDate, localDateOf, type LocalDate } from "@/lib/domain/time";
 import { getBusiness } from "./business";
 import { UserError } from "./errors";
+import { devicesFor } from "./push-devices";
 import { weekSchedule } from "./schedule";
 import { listEmployees } from "./team";
 
@@ -14,6 +15,9 @@ export type ScheduleNotice = {
   name: string;
   /** Null when they have no email or turned schedule emails off. */
   email: string | null;
+  /** Their phones with the Metzey app and notifications on. */
+  devices: string[];
+  businessId: number;
   businessName: string;
   week: string;
   /** One per shift, like "Mon, Nov 16 · 9:00 AM – 1:00 PM · Register". */
@@ -53,7 +57,11 @@ export async function takeNotices(db: Db, weekStart: LocalDate, asked: ScheduleN
   await db.update(schema.scheduleWeek).set({ notifiedSnapshot: now }).where(eq(schema.scheduleWeek.weekStart, weekStart));
   if (recipients.length === 0) return [];
 
-  const [{ name: businessName, timeZone }, people] = await Promise.all([getBusiness(db), listEmployees(db)]);
+  const [{ id: businessId, name: businessName, timeZone }, people, devices] = await Promise.all([
+    getBusiness(db),
+    listEmployees(db),
+    devicesFor(db, recipients),
+  ]);
   const label = formatRange({ start: weekStart, end: addDays(weekStart, 7) });
   return people
     .filter((person) => recipients.includes(person.id))
@@ -62,6 +70,8 @@ export async function takeNotices(db: Db, weekStart: LocalDate, asked: ScheduleN
       employeeId: person.id,
       name: person.displayName,
       email: person.email && person.notifyEmail ? person.email : null,
+      devices: devices.get(person.id) ?? [],
+      businessId,
       businessName,
       week: label,
       shifts: week.shifts

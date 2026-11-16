@@ -15,6 +15,7 @@ struct WebShell: UIViewRepresentable {
         configuration.allowsInlineMediaPlayback = true
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         configuration.applicationNameForUserAgent = "AlabasterApp/\(version)"
+        configuration.userContentController.add(Push.shared, name: Push.handlerName)
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -31,7 +32,8 @@ struct WebShell: UIViewRepresentable {
         webView.scrollView.refreshControl = refresh
 
         context.coordinator.webView = webView
-        webView.load(URLRequest(url: LinkPolicy.home))
+        Push.shared.webView = webView
+        webView.load(URLRequest(url: Push.shared.takeStartURL()))
         return webView
     }
 

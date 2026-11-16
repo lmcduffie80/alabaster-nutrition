@@ -444,6 +444,24 @@ export const inventoryAudit = pgTable(
   (t) => [index("inventory_audit_entity").on(t.entity, t.entityId)],
 );
 
+/** An iPhone or iPad with the Metzey app that asked for schedule notifications for this employee. */
+export const pushDevice = pgTable(
+  "push_device",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    businessId: businessId(),
+    employeeId: uuid("employee_id").notNull(),
+    /** The APNs device token, hex. */
+    token: text("token").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("push_device_token_unique").on(t.businessId, t.token),
+    index("push_device_employee").on(t.businessId, t.employeeId),
+    foreignKey({ name: "push_device_employee_fk", columns: [t.businessId, t.employeeId], foreignColumns: [employee.businessId, employee.id] }).onDelete("cascade"),
+  ],
+);
+
 /** Platform tables: row-level security on, with no access at all for `tenant_app`. */
 export const platformTables = ["business_invite"] as const;
 
@@ -466,4 +484,5 @@ export const businessTables = [
   "invoice_photo",
   "invoice_scan",
   "inventory_audit",
+  "push_device",
 ] as const;

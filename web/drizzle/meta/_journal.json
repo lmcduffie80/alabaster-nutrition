@@ -64,6 +64,13 @@
       "when": 1794795658613,
       "tag": "0008_schedule_notices",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794796215373,
+      "tag": "0009_push_devices",
+      "breakpoints": true
     }
   ]
 }
