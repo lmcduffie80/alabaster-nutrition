@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db";
 import { openBusinessDatabase } from "@/test/businesses";
@@ -14,6 +15,7 @@ import { addShift, publishedShifts, publishWeek, setCalledIn, weekSchedule } fro
 import {
   addEmployee,
   assignRandomPin,
+  clearEmployeePin,
   ensureOwner,
   findEmployeeByEmail,
   listEmployees,
@@ -21,6 +23,7 @@ import {
   setEmployeePin,
   setManagerPin,
   updateEmployee,
+  viewablePins,
 } from "./team";
 import { approveTimesheet, periodTimesheets, reopenTimesheetAt } from "./timesheets";
 
@@ -94,6 +97,24 @@ describe("team", () => {
     expect(["4821", "9036"]).not.toContain(pin);
     const [row] = await db.select({ digest: schema.employee.pinDigest }).from(schema.employee).limit(1);
     expect(row.digest).not.toContain("4821");
+  });
+
+  it("lets PINs be seen again, but never stores them in plain text", async () => {
+    const ava = await addEmployee(db, { displayName: "Ava", email: "" });
+    const jordan = await addEmployee(db, { displayName: "Jordan", email: "" });
+    const casey = await addEmployee(db, { displayName: "Casey", email: "" });
+    await setEmployeePin(db, ava, "4821");
+    const jordanPin = await assignRandomPin(db, jordan);
+    await db.update(schema.employee).set({ pinDigest: "older-digest" }).where(eq(schema.employee.id, casey));
+
+    expect(await viewablePins(db)).toEqual(new Map([[ava, "4821"], [jordan, jordanPin]]));
+    expect(await viewablePins(db, [ava])).toEqual(new Map([[ava, "4821"]]));
+    const sealed = await db.select({ sealed: schema.employee.pinSealed }).from(schema.employee);
+    expect(sealed.map((r) => r.sealed ?? "").join(" ")).not.toContain("4821");
+
+    await clearEmployeePin(db, ava);
+    await setEmployeeActive(db, jordan, false);
+    expect((await viewablePins(db)).size).toBe(0);
   });
 
   it("clears a PIN when someone is deactivated so it can be reused", async () => {

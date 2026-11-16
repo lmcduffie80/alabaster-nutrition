@@ -1,12 +1,12 @@
 import { Badge, Card, ColorDot, employeeColor, Field, inputClass, SectionTitle } from "@/components/ui";
 import { withManager } from "@/lib/server/session";
-import { listEmployees, type Employee } from "@/lib/server/team";
+import { listEmployees, viewablePins, type Employee } from "@/lib/server/team";
 import { addEmployeeAction, inviteEmployeeAction, setActiveAction, setPinAction, updateEmployeeAction } from "../actions";
 import { ActionForm, SubmitButton } from "../forms";
 
 export default async function TeamPage() {
   return withManager(async (db) => {
-    const everyone = await listEmployees(db, { includeInactive: true });
+    const [everyone, pins] = await Promise.all([listEmployees(db, { includeInactive: true }), viewablePins(db)]);
     const active = everyone.filter((e) => e.active);
     const former = everyone.filter((e) => !e.active);
 
@@ -39,15 +39,15 @@ export default async function TeamPage() {
             </SubmitButton>
           </ActionForm>
           <p className="mt-2 text-xs text-ink/50">
-            An email invite lets them sign up on their phone and get a PIN only they see. Or create one now and tell
-            them yourself.
+            An email invite lets them sign up on their phone and get their PIN there. Or create one now and tell them
+            yourself. Open someone below to see their PIN.
           </p>
         </Card>
 
         <SectionTitle>Active ({active.length})</SectionTitle>
         <div className="space-y-2">
           {active.map((employee) => (
-            <EmployeeCard key={employee.id} employee={employee} />
+            <EmployeeCard key={employee.id} employee={employee} pin={pins.get(employee.id)} />
           ))}
         </div>
 
@@ -73,7 +73,7 @@ export default async function TeamPage() {
   });
 }
 
-function EmployeeCard({ employee }: { employee: Employee }) {
+function EmployeeCard({ employee, pin }: { employee: Employee; pin: string | undefined }) {
   return (
     <Card className="p-0">
       <details className="group">
@@ -111,6 +111,16 @@ function EmployeeCard({ employee }: { employee: Employee }) {
             <SubmitButton variant="secondary">Save</SubmitButton>
           </ActionForm>
 
+          {employee.hasPin && (
+            <p className="text-sm">
+              <span className="text-ink/60">Current PIN: </span>
+              {pin ? (
+                <span className="font-mono text-base font-semibold tracking-[0.3em]">{pin}</span>
+              ) : (
+                <span className="text-xs text-ink/50">set before PINs were viewable. Make a new one below to see it here.</span>
+              )}
+            </p>
+          )}
           <ActionForm action={setPinAction} className="flex flex-wrap items-end gap-3">
             <input type="hidden" name="id" value={employee.id} />
             <div className="w-32">

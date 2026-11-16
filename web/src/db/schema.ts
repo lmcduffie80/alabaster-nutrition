@@ -80,6 +80,8 @@ export const employee = pgTable(
     /** Lowercased. Lets this person sign in on their phone to see the schedule. */
     email: text("email"),
     pinDigest: text("pin_digest"),
+    /** The same PIN, encrypted, so managers and the employee can see it; null for PINs set before this existed. */
+    pinSealed: text("pin_sealed"),
     /** Emails when their shifts are published or changed. */
     notifyEmail: boolean("notify_email").notNull().default(true),
     createdAt: createdAt(),

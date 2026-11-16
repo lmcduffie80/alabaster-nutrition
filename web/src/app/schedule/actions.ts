@@ -18,7 +18,7 @@ export async function setNotifyEmailAction(form: FormData) {
 
 export type MyPinState = { pin?: string; error?: string; at?: number } | null;
 
-/** Gives the signed-in person a fresh random PIN that only they see. Any earlier PIN stops working. */
+/** Gives the signed-in person a fresh random PIN. Any earlier PIN stops working. */
 export async function getMyPinAction(): Promise<MyPinState> {
   try {
     const pin = await withMember((db, member) => assignRandomPin(db, member.employeeId));

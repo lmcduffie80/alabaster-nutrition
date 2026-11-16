@@ -50,7 +50,7 @@ export function ActionForm({
           {state.pin && (
             <p className="rounded-lg bg-porcelain-light px-3 py-2 text-sm">
               New PIN: <strong className="font-mono text-lg tracking-widest">{state.pin}</strong>
-              <span className="block text-xs text-ink/60">Write it down for them now. It won&rsquo;t be shown again.</span>
+              <span className="block text-xs text-ink/60">Tell them now. You can see it again on the Team page.</span>
             </p>
           )}
         </div>

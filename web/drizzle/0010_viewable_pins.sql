@@ -1,0 +1,1 @@
+ALTER TABLE "employee" ADD COLUMN "pin_sealed" text;
