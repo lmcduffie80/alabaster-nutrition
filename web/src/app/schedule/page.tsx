@@ -10,6 +10,7 @@ import { withMember } from "@/lib/server/session";
 import { listEmployees } from "@/lib/server/team";
 import { setNotifyEmailAction } from "./actions";
 import { MyPin } from "./my-pin";
+import { PhoneNotifications } from "./phone-notifications";
 
 export const metadata: Metadata = { title: "My Schedule · Metzey" };
 
@@ -103,6 +104,7 @@ export default async function EmployeeSchedulePage() {
           Turn {emailsOn ? "off" : "on"}
         </button>
       </form>
+      <PhoneNotifications />
       <p className="mt-6 text-center text-xs text-ink/50">Clock in and out on the store iPad.</p>
       <p className="mt-2 text-center text-xs text-ink/50">
         <Link href="/account" className="hover:underline">
