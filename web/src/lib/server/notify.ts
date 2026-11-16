@@ -2,32 +2,15 @@ import "server-only";
 import { after } from "next/server";
 import { getDb } from "@/db";
 import { withBusiness } from "@/db/tenant";
-import { escapeHtml, sendEmail, type Email } from "./email";
+import { sendEmail } from "./email";
 import { sendPush, type PushMessage } from "./push";
 import { forgetTokens } from "./push-devices";
-import { noticeBody, noticeTitle, type ScheduleNotice } from "./schedule-notices";
-
-export function scheduleEmail(notice: ScheduleNotice & { email: string }, origin: string): Email {
-  const link = `${origin}/schedule`;
-  const subject = `${noticeTitle(notice)} · ${notice.businessName}`;
-  const body = noticeBody(notice);
-  const text = `Hi ${notice.name},\n\n${body}\n\nSee the full schedule: ${link}\n\nTo stop these emails, turn off "Email me schedule changes" on your schedule page.`;
-  const items = notice.shifts.length
-    ? `<ul style="padding-left:18px">${notice.shifts.map((s) => `<li style="margin:4px 0">${escapeHtml(s)}</li>`).join("")}</ul>`
-    : `<p>${escapeHtml(body)}</p>`;
-  const html = `<div style="font-family:Georgia,serif;color:#1f2a44;max-width:480px">
-<p style="font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#3e5c9a">${escapeHtml(notice.businessName)}</p>
-<h2 style="font-weight:600">${escapeHtml(noticeTitle(notice))}</h2>
-<p>Hi ${escapeHtml(notice.name)},</p>
-${items}
-<p><a href="${link}" style="color:#3e5c9a">See the full schedule</a></p>
-<p style="font-size:12px;color:#888">To stop these emails, turn off &ldquo;Email me schedule changes&rdquo; on your schedule page.</p>
-</div>`;
-  return { to: notice.email, subject, text, html };
-}
+import { scheduleEmail } from "./schedule-email";
+import { noticeBody, noticeTitle, shiftText, type ScheduleNotice } from "./schedule-notices";
 
 export function schedulePush(notice: ScheduleNotice): PushMessage {
-  const body = notice.shifts.length > 3 ? `${notice.shifts.slice(0, 3).join("\n")}\n+${notice.shifts.length - 3} more` : noticeBody(notice);
+  const lines = notice.shifts.map(shiftText);
+  const body = lines.length > 3 ? `${lines.slice(0, 3).join("\n")}\n+${lines.length - 3} more` : noticeBody(notice);
   return { title: `${noticeTitle(notice)} · ${notice.businessName}`, body, path: "/schedule" };
 }
 
