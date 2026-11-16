@@ -107,6 +107,11 @@ export function formatMinutes(total: number) {
   return `${sign}${Math.floor(abs / 60)}h ${(abs % 60).toString().padStart(2, "0")}m`;
 }
 
+/** Scheduled time in minutes; called-in shifts don't count because nobody works them. */
+export function scheduledMinutes(shifts: { startsAt: Date; endsAt: Date; calledInAt: Date | null }[]) {
+  return shifts.reduce((total, s) => (s.calledInAt ? total : total + (s.endsAt.getTime() - s.startsAt.getTime()) / 60_000), 0);
+}
+
 export function formatTimer(ms: number) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(totalSeconds / 3600);

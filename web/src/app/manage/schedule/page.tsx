@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
 import { LiveRefresh } from "@/components/live-refresh";
 import { Badge, Card, ColorDot, employeeColor, Field, inputClass, SectionTitle } from "@/components/ui";
-import { addDays, formatDay, formatRange, formatTime, isLocalDate, localDateOf, weekStartOf } from "@/lib/domain/time";
+import { addDays, formatDay, formatMinutes, formatRange, formatTime, isLocalDate, localDateOf, scheduledMinutes, weekStartOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
 import { weekSchedule } from "@/lib/server/schedule";
 import { pendingChanges } from "@/lib/server/schedule-notices";
@@ -25,6 +25,7 @@ export default async function SchedulePage({ searchParams }: PageProps<"/manage/
       ...employees,
       ...(await listEmployees(db, { includeInactive: true })).filter((e) => !e.active && scheduledIds.has(e.id)),
     ];
+    const minutesFor = (employeeId: string) => scheduledMinutes(week.shifts.filter((s) => s.employeeId === employeeId));
 
     return (
       <div>
@@ -100,6 +101,7 @@ export default async function SchedulePage({ searchParams }: PageProps<"/manage/
                     {formatDay(day)}
                   </th>
                 ))}
+                <th className="w-20 px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-ink/50">Hours</th>
               </tr>
             </thead>
             <tbody>
@@ -136,9 +138,20 @@ export default async function SchedulePage({ searchParams }: PageProps<"/manage/
                         ))}
                     </td>
                   ))}
+                  <td className="border-t border-ink/10 px-2 py-2 text-right align-top tabular-nums text-ink/70">
+                    {minutesFor(employee.id) > 0 ? formatMinutes(minutesFor(employee.id)) : "–"}
+                  </td>
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={days.length + 1} className="border-t border-ink/20 px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-ink/50">
+                  Week total
+                </td>
+                <td className="border-t border-ink/20 px-2 py-2 text-right font-semibold tabular-nums">{formatMinutes(scheduledMinutes(week.shifts))}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
 
