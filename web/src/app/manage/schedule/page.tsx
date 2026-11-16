@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
+import { LiveRefresh } from "@/components/live-refresh";
 import { Badge, Card, ColorDot, employeeColor, Field, inputClass, SectionTitle } from "@/components/ui";
 import { addDays, formatDay, formatRange, formatTime, isLocalDate, localDateOf, weekStartOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
@@ -26,6 +27,7 @@ export default async function SchedulePage({ searchParams }: PageProps<"/manage/
 
     return (
       <div>
+        <LiveRefresh />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-serif text-3xl font-semibold">Schedule</h1>
