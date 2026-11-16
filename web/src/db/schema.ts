@@ -80,6 +80,8 @@ export const employee = pgTable(
     /** Lowercased. Lets this person sign in on their phone to see the schedule. */
     email: text("email"),
     pinDigest: text("pin_digest"),
+    /** Emails when their shifts are published or changed. */
+    notifyEmail: boolean("notify_email").notNull().default(true),
     createdAt: createdAt(),
   },
   (t) => [
@@ -156,6 +158,8 @@ export const scheduleWeek = pgTable(
     businessId: businessId(),
     weekStart: date("week_start", { mode: "string" }).notNull(),
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    /** Each employee's shifts as of the last notice, to find who a later edit affects. */
+    notifiedSnapshot: jsonb("notified_snapshot").$type<Record<string, string[]>>(),
   },
   (t) => [primaryKey({ name: "schedule_week_pkey", columns: [t.businessId, t.weekStart] })],
 );

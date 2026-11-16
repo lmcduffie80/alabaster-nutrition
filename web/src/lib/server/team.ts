@@ -16,6 +16,7 @@ export type Employee = {
   colorIndex: number;
   active: boolean;
   email: string | null;
+  notifyEmail: boolean;
   hasPin: boolean;
 };
 
@@ -26,6 +27,7 @@ const columns = {
   colorIndex: schema.employee.colorIndex,
   active: schema.employee.active,
   email: schema.employee.email,
+  notifyEmail: schema.employee.notifyEmail,
   pinDigest: schema.employee.pinDigest,
 };
 

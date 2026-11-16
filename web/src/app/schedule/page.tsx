@@ -8,6 +8,7 @@ import { getBusiness } from "@/lib/server/business";
 import { publishedShifts } from "@/lib/server/schedule";
 import { withMember } from "@/lib/server/session";
 import { listEmployees } from "@/lib/server/team";
+import { setNotifyEmailAction } from "./actions";
 import { MyPin } from "./my-pin";
 
 export const metadata: Metadata = { title: "My Schedule · Metzey" };
@@ -23,6 +24,7 @@ export default async function EmployeeSchedulePage() {
     return { viewer, timeZone, today, weekStart, shifts, team };
   });
   const mine = shifts.filter((s) => s.employeeId === viewer.employeeId);
+  const emailsOn = team.get(viewer.employeeId)?.notifyEmail ?? true;
   const days = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i)).filter((d) => d >= today);
   const time = (s: (typeof shifts)[number]) => `${formatTime(s.startsAt, timeZone)} – ${formatTime(s.endsAt, timeZone)}`;
 
@@ -91,6 +93,16 @@ export default async function EmployeeSchedulePage() {
           );
         })}
       </div>
+      <form action={setNotifyEmailAction} className="mt-6 flex items-center justify-between gap-3 rounded-xl border border-ink/10 bg-white px-4 py-3 text-sm">
+        <input type="hidden" name="on" value={emailsOn ? "false" : "true"} />
+        <span>
+          <span className="font-medium">Email me schedule changes</span>
+          <span className="block text-xs text-ink/50">{emailsOn ? "On" : "Off"} · when a week is published or your shifts change</span>
+        </span>
+        <button type="submit" className="text-sm font-semibold text-porcelain hover:underline">
+          Turn {emailsOn ? "off" : "on"}
+        </button>
+      </form>
       <p className="mt-6 text-center text-xs text-ink/50">Clock in and out on the store iPad.</p>
       <p className="mt-2 text-center text-xs text-ink/50">
         <Link href="/account" className="hover:underline">
