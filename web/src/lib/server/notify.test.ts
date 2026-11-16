@@ -27,18 +27,20 @@ vi.mock("./push-devices", () => ({
   forgetTokens: async (db: { businessId: number }, tokens: string[]) => void sent.forgotten.push({ businessId: db.businessId, tokens }),
 }));
 
-const { deliverLater, scheduleEmail, schedulePush } = await import("./notify");
+const { deliverLater, schedulePush } = await import("./notify");
+const { scheduleEmail } = await import("./schedule-email");
 
+const tuesday = { weekday: "Tue", date: "Nov 17", time: "9:00 AM – 1:00 PM", position: "", calledIn: false, minutes: 240 };
 const notice = {
   kind: "changed" as const,
   employeeId: "e1",
-  name: "Ava <3",
+  name: "Ava<3 Reed",
   email: "ava@example.com",
   devices: [] as string[],
   businessId: 7,
   businessName: "Alabaster Nutrition",
   week: "Nov 16 – 22",
-  shifts: ["Tue, Nov 17 · 9:00 AM – 1:00 PM"],
+  shifts: [tuesday],
 };
 
 describe("schedule notices", () => {
@@ -55,8 +57,20 @@ describe("schedule notices", () => {
     expect(email.subject).toBe("Your schedule changed: Nov 16 – 22 · Alabaster Nutrition");
     expect(email.text).toContain("Tue, Nov 17 · 9:00 AM – 1:00 PM");
     expect(email.text).toContain("https://app.example.com/schedule");
-    expect(email.html).toContain("Ava &lt;3");
+    expect(email.html).toContain("Hi Ava&lt;3,");
     expect(scheduleEmail({ ...notice, shifts: [] }, "https://x").text).toContain("no longer scheduled");
+  });
+
+  it("totals the week's hours, leaving out called-in shifts, and shows the button and opt-out", () => {
+    const shifts = [tuesday, { ...tuesday, weekday: "Wed", date: "Nov 18", position: "Opener", minutes: 375 }, { ...tuesday, calledIn: true }];
+    const email = scheduleEmail({ ...notice, kind: "published", shifts }, "https://app.example.com");
+    expect(email.text).toContain("This week: 2 shifts · 10h 15m");
+    expect(email.text).toContain("Wed, Nov 18 · 9:00 AM – 1:00 PM · Opener");
+    expect(email.html).toContain("2 shifts · 10h 15m");
+    expect(email.html).toContain("Called in");
+    expect(email.html).toContain('href="https://app.example.com/schedule"');
+    expect(email.html).toContain("View my schedule");
+    expect(email.html).toContain("Email me schedule changes");
   });
 
   it("sends after the response, skipping people without an email", async () => {
@@ -83,7 +97,7 @@ describe("schedule notices", () => {
   });
 
   it("keeps long pushes short", () => {
-    const shifts = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-    expect(schedulePush({ ...notice, shifts }).body).toBe("Mon\nTue\nWed\n+2 more");
+    const shifts = ["Mon", "Tue", "Wed", "Thu", "Fri"].map((weekday) => ({ ...tuesday, weekday, time: "9", date: "1" }));
+    expect(schedulePush({ ...notice, shifts }).body).toBe("Mon, 1 · 9\nTue, 1 · 9\nWed, 1 · 9\n+2 more");
   });
 });

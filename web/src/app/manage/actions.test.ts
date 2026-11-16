@@ -17,7 +17,7 @@ const state = vi.hoisted(() => ({
   clerkUsers: [] as string[],
   invited: [] as { emailAddress: string; redirectUrl: string }[],
   inviteFails: false,
-  delivered: [] as { name: string; email: string | null; kind: string; shifts: string[] }[][],
+  delivered: [] as { name: string; email: string | null; kind: string; shifts: unknown[] }[][],
 }));
 
 vi.mock("@/lib/server/notify", () => ({
@@ -556,7 +556,9 @@ describe("schedule notices", () => {
     const published = await publishAction(null, form({ weekStart: week, publish: "true" }));
     expect(published?.success).toContain("2 people were notified");
     expect(told(state.delivered[0])).toEqual([["Ava", "ava@example.com"], ["Kim", null], ["Sam", "sam@example.com"]]);
-    expect(state.delivered[0].find((n) => n.name === "Ava")?.shifts).toEqual(["Tue, Nov 17 · 9:00 AM – 1:00 PM"]);
+    expect(state.delivered[0].find((n) => n.name === "Ava")?.shifts).toEqual([
+      { weekday: "Tue", date: "Nov 17", time: "9:00 AM – 1:00 PM", position: "", calledIn: false, minutes: 240 },
+    ]);
 
     expect(await notifyScheduleChangesAction(null, form({ weekStart: week }))).toMatchObject({ success: expect.stringContaining("No one") });
     expect(state.delivered).toHaveLength(1);

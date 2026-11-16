@@ -20,9 +20,20 @@ export type ScheduleNotice = {
   businessId: number;
   businessName: string;
   week: string;
-  /** One per shift, like "Mon, Nov 16 · 9:00 AM – 1:00 PM · Register". */
-  shifts: string[];
+  shifts: NoticeShift[];
 };
+
+export type NoticeShift = { weekday: string; date: string; time: string; position: string; calledIn: boolean; minutes: number };
+
+/** Like "Mon, Nov 16 · 9:00 AM – 1:00 PM · Register". */
+export function shiftText(shift: NoticeShift) {
+  return [`${shift.weekday}, ${shift.date}`, shift.time, shift.position, shift.calledIn ? "called in" : ""].filter(Boolean).join(" · ");
+}
+
+/** Hours they're expected to work; called-in shifts don't count. */
+export function noticeMinutes(notice: ScheduleNotice) {
+  return notice.shifts.reduce((total, s) => (s.calledIn ? total : total + s.minutes), 0);
+}
 
 async function current(db: Db, weekStart: LocalDate) {
   if (!isLocalDate(weekStart)) throw new UserError("Choose a week.");
@@ -76,16 +87,17 @@ export async function takeNotices(db: Db, weekStart: LocalDate, asked: ScheduleN
       week: label,
       shifts: week.shifts
         .filter((s) => s.employeeId === person.id)
-        .map((s) =>
-          [
-            formatDay(localDateOf(s.startsAt, timeZone)),
-            `${formatTime(s.startsAt, timeZone)} – ${formatTime(s.endsAt, timeZone)}`,
-            s.position,
-            s.calledInAt ? "called in" : "",
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        ),
+        .map((s) => {
+          const [weekday, date] = formatDay(localDateOf(s.startsAt, timeZone)).split(", ");
+          return {
+            weekday,
+            date,
+            time: `${formatTime(s.startsAt, timeZone)} – ${formatTime(s.endsAt, timeZone)}`,
+            position: s.position,
+            calledIn: s.calledInAt !== null,
+            minutes: Math.round((s.endsAt.getTime() - s.startsAt.getTime()) / 60_000),
+          };
+        }),
     }));
 }
 
@@ -95,5 +107,5 @@ export function noticeTitle(notice: ScheduleNotice) {
 
 export function noticeBody(notice: ScheduleNotice) {
   if (notice.shifts.length === 0) return "You're no longer scheduled that week.";
-  return notice.shifts.join("\n");
+  return notice.shifts.map(shiftText).join("\n");
 }
