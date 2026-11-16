@@ -3,12 +3,14 @@ import { afterFailedAttempt, isSimplePin, MAX_PIN_ATTEMPTS, pinProblem } from ".
 import { buildShifts, currentStatus, isAllowed, type EffectivePunch, type PunchKind } from "./punches";
 import {
   addDays,
+  formatMinutes,
   instantAt,
   isLocalDate,
   localDateOf,
   localRange,
   minutesAfterMidnight,
   payPeriodContaining,
+  scheduledMinutes,
   weekStartOf,
 } from "./time";
 import { timesheetCsv, timesheetRow, timesheetTotalsCsv } from "./timesheet";
@@ -151,6 +153,22 @@ describe("local time", () => {
     expect(weekStartOf("2026-11-15")).toBe("2026-11-09");
     expect(weekStartOf("2026-11-16")).toBe("2026-11-16");
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+  });
+
+  it("adds up scheduled time, leaving out called-in shifts", () => {
+    const shift = (start: string, end: string, calledIn = false) => ({
+      startsAt: new Date(start),
+      endsAt: new Date(end),
+      calledInAt: calledIn ? new Date(start) : null,
+    });
+    const shifts = [
+      shift("2026-11-16T12:00:00Z", "2026-11-16T18:15:00Z"),
+      shift("2026-11-17T12:00:00Z", "2026-11-17T18:00:00Z"),
+      shift("2026-11-18T12:00:00Z", "2026-11-18T18:00:00Z", true),
+    ];
+    expect(scheduledMinutes(shifts)).toBe(735);
+    expect(formatMinutes(scheduledMinutes(shifts))).toBe("12h 15m");
+    expect(scheduledMinutes([])).toBe(0);
   });
 });
 
