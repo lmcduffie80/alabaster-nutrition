@@ -81,6 +81,23 @@ describe("matching a scanned invoice", () => {
     ]);
   });
 
+  it("matches by description regardless of spacing and case, and by SKU before the supplier is added", async () => {
+    const coffee = await addItem(db, item({ name: "HP Coffee Crmel Mchiato 347 g", supplierId: sysco, supplierCode: "216K" }));
+    const blueberry = await addItem(db, item({ name: "Drink mix blueberry 4.4oz" }));
+    const prefill = await matchInvoice(
+      db,
+      reading({
+        supplierName: "Herbalife Nutrition",
+        lines: [
+          line({ itemCode: "216k", description: "HP COFFEE CRMEL MCHIATO 347G", quantity: 1 }),
+          line({ itemCode: "179M", description: "DRINK MIX BLUEBERRY 4.4OZ", quantity: 3 }),
+        ],
+      }),
+      today,
+    );
+    expect(prefill.lines.map((l) => l.itemId)).toEqual([coffee, blueberry]);
+  });
+
   it("offers an unknown supplier, and falls back to today for missing or future dates", async () => {
     const prefill = await matchInvoice(db, reading({ supplierName: "Restaurant Depot", invoiceDate: null }), today);
     expect(prefill).toMatchObject({ supplierId: "", unknownSupplier: "Restaurant Depot", receivedOn: today });

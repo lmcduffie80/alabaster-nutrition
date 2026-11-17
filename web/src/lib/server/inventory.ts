@@ -497,6 +497,8 @@ export type DeliveryLineInput = {
   lineTotal: string;
   invoiceCode?: string;
   invoiceDescription?: string;
+  /** Instead of `itemId`: a product the business doesn't have yet, added as an item when the delivery is saved. */
+  newItem?: { name: string; unit: string };
 };
 
 /** Everything as typed into the delivery form; quantities are in each item's count unit. */
@@ -519,7 +521,7 @@ function money(value: string, label: string) {
   }
 }
 
-async function parseDelivery(db: Db, input: DeliveryInput, today: LocalDate) {
+async function parseDelivery(db: Db, input: DeliveryInput, today: LocalDate, options: { allowNewItems?: boolean } = {}) {
   if (!isId(input.supplierId)) throw new UserError("Choose the supplier.");
   const [found] = await db.select({ id: supplier.id }).from(supplier).where(eq(supplier.id, input.supplierId));
   if (!found) throw new UserError("Choose the supplier.");
@@ -529,19 +531,21 @@ async function parseDelivery(db: Db, input: DeliveryInput, today: LocalDate) {
   if (invoiceNumber && invoiceNumber.length > 40) throw new UserError("Keep the invoice number under 40 characters.");
   const invoiceTotal = money(input.invoiceTotal, "Invoice total");
 
-  const filled = input.lines.filter((line) => line.itemId || line.quantity.trim() || line.lineTotal.trim());
+  const filled = input.lines.filter((line) => line.itemId || line.newItem || line.quantity.trim() || line.lineTotal.trim());
   if (filled.length === 0) throw new UserError("Add at least one item.");
   if (filled.length > MAX_DELIVERY_LINES) throw new UserError(`A delivery can have up to ${MAX_DELIVERY_LINES} lines.`);
-  const ids = [...new Set(filled.map((line) => line.itemId))];
+  if (!options.allowNewItems && filled.some((line) => !line.itemId && line.newItem)) throw new UserError("Choose an item on every line.");
+  const ids = [...new Set(filled.filter((line) => line.itemId || !line.newItem).map((line) => line.itemId))];
   if (!ids.every(isId)) throw new UserError("Choose an item on every line.");
-  const items = await db
-    .select({ id: inventoryItem.id, name: inventoryItem.name })
-    .from(inventoryItem)
-    .where(inArray(inventoryItem.id, ids));
+  const items = ids.length
+    ? await db.select({ id: inventoryItem.id, name: inventoryItem.name }).from(inventoryItem).where(inArray(inventoryItem.id, ids))
+    : [];
   const names = new Map(items.map((i) => [i.id, i.name]));
 
   const lines = filled.map((line) => {
-    const name = names.get(line.itemId);
+    const newItem = !line.itemId && line.newItem ? { name: line.newItem.name.trim(), unit: line.newItem.unit.trim() || "each" } : null;
+    if (newItem && !newItem.name) throw new UserError("Give each new item a name.");
+    const name = newItem?.name ?? names.get(line.itemId);
     if (!name) throw new UserError("Choose an item on every line.");
     let quantity: number | null;
     try {
@@ -551,14 +555,58 @@ async function parseDelivery(db: Db, input: DeliveryInput, today: LocalDate) {
     }
     if (!quantity) throw new UserError(`${name}: enter the quantity received.`);
     return {
-      itemId: line.itemId,
+      itemId: newItem ? "" : line.itemId,
       quantity,
       lineTotal: money(line.lineTotal, name),
       invoiceCode: line.invoiceCode?.trim().slice(0, 40) || null,
       invoiceDescription: line.invoiceDescription?.trim().slice(0, 200) || null,
+      newItem,
     };
   });
   return { header: { supplierId: found.id, invoiceNumber, invoiceTotal, receivedOn: input.receivedOn, onShelfForCount: input.onShelfForCount }, lines };
+}
+
+type ParsedLine = Awaited<ReturnType<typeof parseDelivery>>["lines"][number];
+
+/**
+ * Adds each new product on a delivery as an item: the invoice's code, the first storage spot, and what was
+ * received as both its starting stock (as of the delivery date) and its order-up-to level.
+ */
+async function addDeliveredItems(db: Db, header: { supplierId: string; receivedOn: string }, lines: ParsedLine[]) {
+  let spotId: string | null = null;
+  const saved = [];
+  for (const { newItem, ...line } of lines) {
+    if (!newItem) {
+      saved.push(line);
+      continue;
+    }
+    if (!spotId) {
+      const [spot] = await db.select({ id: storageSpot.id }).from(storageSpot).orderBy(asc(storageSpot.sortOrder)).limit(1);
+      if (!spot) throw new UserError("Add a storage spot under Inventory > Spots before adding new items.");
+      spotId = spot.id;
+    }
+    const { name, unit } = newItem;
+    try {
+      const id = await addItem(db, {
+        name: name.slice(0, 80),
+        type: "ingredient",
+        unit: unit.slice(0, 40),
+        spotId,
+        supplierId: header.supplierId,
+        supplierCode: line.invoiceCode ?? "",
+        packSize: "1",
+        reorderAt: "0",
+        orderUpTo: String(line.quantity),
+        defaultUnitCost: "",
+      });
+      await db.update(inventoryItem).set({ startingQuantity: line.quantity, startingOn: header.receivedOn }).where(eq(inventoryItem.id, id));
+      saved.push({ ...line, itemId: id });
+    } catch (error) {
+      if (error instanceof UserError) throw new UserError(`${name}: ${error.message}`);
+      throw error;
+    }
+  }
+  return saved;
 }
 
 const duplicateInvoice = "That invoice number from this supplier is already recorded.";
@@ -600,9 +648,10 @@ async function learnCodes(db: Executor, supplierId: string, lines: { itemId: str
 }
 
 export async function recordDelivery(db: Db, input: DeliveryInput, who: { actor: string; now: Date }) {
-  const { header, lines } = await parseDelivery(db, input, await businessToday(db, who.now));
+  const { header, lines: parsed } = await parseDelivery(db, input, await businessToday(db, who.now), { allowNewItems: true });
   return unique(
     db.transaction(async (tx) => {
+      const lines = await addDeliveredItems(tx as unknown as Db, header, parsed);
       const [row] = await tx
         .insert(delivery)
         .values({ ...header, recordedBy: who.actor, recordedAt: who.now })
@@ -704,7 +753,8 @@ export async function updateDelivery(db: Db, id: string, input: DeliveryInput, w
   const reason = parse(reasonSchema, who.reason);
   const before = await deliverySnapshot(db, id);
   if (!before) throw new UserError("That delivery no longer exists.");
-  const { header, lines } = await parseDelivery(db, input, await businessToday(db, who.now));
+  const { header, lines: parsed } = await parseDelivery(db, input, await businessToday(db, who.now));
+  const lines = await addDeliveredItems(db, header, parsed);
   await unique(
     db.transaction(async (tx) => {
       await tx.update(delivery).set(header).where(eq(delivery.id, id));

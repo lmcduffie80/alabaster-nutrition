@@ -329,7 +329,7 @@ describe("scanning invoices", () => {
     expect(await scanInvoiceAction(photos(photo()))).toMatchObject({ kind: "unreadable", photoIds: [expect.any(String)] });
     expect(await scanInvoiceAction(photos())).toMatchObject({ kind: "error", message: /Choose a photo/ });
     expect(await scanInvoiceAction(photos(new File(["x"], "a.png", { type: "image/png" })))).toMatchObject({ kind: "error" });
-    expect(await scanInvoiceAction(photos(...Array.from({ length: 6 }, () => photo())))).toMatchObject({ kind: "error", message: /up to 5/ });
+    expect(await scanInvoiceAction(photos(...Array.from({ length: 21 }, () => photo())))).toMatchObject({ kind: "error", message: /up to 20/ });
 
     await state.db.insert(schema.invoiceScan).values(Array.from({ length: 29 }, () => ({ actor: "owner", at: new Date(), ok: true })));
     expect(await scanInvoiceAction(photos(photo()))).toMatchObject({ kind: "error", message: /30 scans/ });

@@ -8,7 +8,7 @@ import { listItems, listSuppliers } from "./inventory";
 
 const { delivery, invoicePhoto, invoiceScan } = schema;
 
-export const MAX_SCAN_PAGES = 5;
+export const MAX_SCAN_PAGES = 20;
 export const SCANS_PER_DAY = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -49,6 +49,8 @@ export function sameSupplier(onInvoice: string, ours: string) {
 
 const code = (value: string | null | undefined) => value?.trim().toLowerCase() || null;
 const amount = (value: number | null) => (value === null ? "" : String(round2(value)));
+/** "HP Coffee Crmel Mchiato 347G" and "hp coffee crmel mchiato 347 g" are the same product. */
+const words = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 
 /** Turns what the model read into a delivery form: matched supplier, items by code, quantities in count units. */
 export async function matchInvoice(db: Db, reading: InvoiceReading, today: LocalDate): Promise<ScanPrefill> {
@@ -58,10 +60,12 @@ export async function matchInvoice(db: Db, reading: InvoiceReading, today: Local
 
   const lines = reading.lines.map((line): ScannedLine => {
     const lineCode = code(line.itemCode);
-    const description = line.description.trim().toLowerCase();
+    const description = words(line.description);
+    const byCode = lineCode ? items.filter((i) => code(i.supplierCode) === lineCode) : [];
     const item =
-      (lineCode && items.find((i) => i.supplierId === supplierId && code(i.supplierCode) === lineCode)) ||
-      items.find((i) => i.name.toLowerCase() === description);
+      byCode.find((i) => i.supplierId === supplierId) ||
+      (!supplierId && byCode.length === 1 ? byCode[0] : undefined) ||
+      (description ? items.find((i) => words(i.name) === description) : undefined);
     return {
       itemId: item?.id ?? "",
       quantity: item && line.quantity !== null ? amount(line.quantity * item.packSize) : "",

@@ -189,7 +189,7 @@ export function ReceiptItems({
                     unit: l.unit,
                     spotId: l.spotId,
                     packSize: l.packSize,
-                    reorderAt: l.reorderAt,
+                    reorderAt: l.reorderAt || (Number(l.orderUpTo) > 0 ? "0" : ""),
                     orderUpTo: l.orderUpTo,
                     defaultUnitCost: "",
                   },

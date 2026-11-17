@@ -37,6 +37,7 @@ const linesSchema = z
       lineTotal: z.string(),
       invoiceCode: z.string().optional(),
       invoiceDescription: z.string().optional(),
+      newItem: z.object({ name: z.string(), unit: z.string() }).optional(),
     }),
   )
   .max(200);
