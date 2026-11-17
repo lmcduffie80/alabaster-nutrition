@@ -3,7 +3,17 @@ import { type Db, schema } from "@/db";
 import { openLocalDatabase } from "@/db/local";
 import { withBusiness } from "@/db/tenant";
 import { getBusiness } from "./business";
-import { cancelInvite, checkInvite, createInvite, INVITE_DAYS, listInvites, platformOwnerEmails, redeemInvite } from "./invites";
+import {
+  cancelInvite,
+  checkInvite,
+  createInvite,
+  createOwnBusiness,
+  INVITE_DAYS,
+  listInvites,
+  MAX_MANAGED_BUSINESSES,
+  platformOwnerEmails,
+  redeemInvite,
+} from "./invites";
 import { businessesForEmail, createBusiness } from "./system";
 import { addEmployee, listEmployees } from "./team";
 
@@ -92,5 +102,27 @@ describe("redeeming an invite", () => {
       [1, "employee"],
       [businessId, "manager"],
     ]);
+  });
+});
+
+describe("starting a business without an invite", () => {
+  const start = (overrides: Partial<Parameters<typeof createOwnBusiness>[1]> = {}) =>
+    createOwnBusiness(db, { email: "Owner@Shop.com", displayName: "Oli", businessName: "Bean Bar", timeZone: "America/Denver", now, ...overrides });
+
+  it("makes them the manager of a new business on a 14-day trial", async () => {
+    const businessId = await start();
+    const business = await withBusiness(db, businessId, getBusiness);
+    expect(business).toMatchObject({ name: "Bean Bar", billingExempt: false, trialEndsAt: later(14), planStatus: null });
+    expect(await businessesForEmail(db, "owner@shop.com")).toMatchObject([{ businessId, role: "manager" }]);
+  });
+
+  it(`stops at ${MAX_MANAGED_BUSINESSES} businesses per manager`, async () => {
+    for (let i = 0; i < MAX_MANAGED_BUSINESSES; i++) await start({ businessName: `Shop ${i}` });
+    await expect(start({ businessName: "One more" })).rejects.toThrow(`already manage ${MAX_MANAGED_BUSINESSES}`);
+  });
+
+  it("refuses a bad name or time zone", async () => {
+    await expect(start({ businessName: " " })).rejects.toThrow("business name");
+    await expect(start({ timeZone: "Nowhere" })).rejects.toThrow("time zone");
   });
 });

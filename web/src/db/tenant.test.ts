@@ -73,6 +73,14 @@ describe("walls between businesses", () => {
     await expect(asOne((tx) => tx.update(schema.business).set({ name: "Hijacked" }).where(eq(schema.business.id, 2)).returning())).resolves.toEqual([]);
   });
 
+  it("a business can't change its own billing", async () => {
+    await expect(asTwo((tx) => tx.update(schema.business).set({ planStatus: "active" }))).rejects.toThrow();
+    await expect(asTwo((tx) => tx.update(schema.business).set({ billingExempt: true }))).rejects.toThrow();
+    await expect(asTwo((tx) => tx.update(schema.business).set({ trialEndsAt: new Date("2099-01-01") }))).rejects.toThrow();
+    expect((await asOne(getBusiness)).billingExempt).toBe(true);
+    expect((await asTwo(getBusiness)).billingExempt).toBe(false);
+  });
+
   it("a store iPad belongs to the business that set it up", async () => {
     const { token } = await asTwo((tx) => enrollKiosk(tx, "Cafe iPad"));
     expect((await kioskByToken(db, token, now))?.businessId).toBe(2);

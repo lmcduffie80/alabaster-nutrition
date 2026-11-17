@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Wordmark } from "@/components/ui";
+import { COMPANY, SUPPORT_EMAIL } from "@/lib/company";
 
 export const metadata: Metadata = { title: "Privacy Policy · Metzey" };
 
-const CONTACT = "shop@alabasternutrition.com";
-const UPDATED = "November 11, 2026";
+const CONTACT = SUPPORT_EMAIL;
+const UPDATED = "November 16, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -16,7 +17,7 @@ export default function PrivacyPage() {
 
       <Section title="Who we are">
         This policy covers Metzey: the website at app.alabasternutrition.com and the Metzey iPhone and iPad app, which
-        shows the same website. They are run by Donald McDuffie (&ldquo;we&rdquo;). The service gives small
+        shows the same website. They are run by {COMPANY} (&ldquo;we&rdquo;). The service gives small
         businesses a time clock, staff schedules, timesheets, and inventory tracking. Each business&rsquo;s information
         is kept separate and is only visible to people on that business&rsquo;s team.
       </Section>
@@ -65,6 +66,14 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Neon</strong> hosts the database.
+          </li>
+          <li>
+            <strong>Stripe</strong> handles subscription payments. Card details go straight to Stripe and never reach
+            us; we keep only the plan&rsquo;s status and renewal date.
+          </li>
+          <li>
+            <strong>Resend</strong> sends schedule emails, and <strong>Apple</strong> delivers schedule notifications to
+            phones that turn them on.
           </li>
           <li>
             <strong>OpenAI</strong> reads invoice photos when a manager scans one, to suggest the supplier, items, and

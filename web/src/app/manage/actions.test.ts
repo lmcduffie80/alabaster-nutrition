@@ -379,6 +379,43 @@ describe("more than one business", () => {
     expect(await namesIn(2)).toEqual(["Cam", "Dee"]);
     expect(await namesIn(1)).toEqual(["Cam"]);
   });
+
+  it("once the trial ends, manager tools lead to Billing until the plan is paid", async () => {
+    const setBilling = (values: Partial<typeof schema.business.$inferInsert>) =>
+      state.db.update(schema.business).set(values).where(eq(schema.business.id, 2));
+    state.user = { email: "cam@example.com" };
+    await setBilling({ trialEndsAt: new Date(Date.now() - 60_000) });
+    await expect(addEmployeeAction(null, form({ displayName: "Dee", email: "" }))).rejects.toThrow("REDIRECT /manage/billing");
+    expect(await namesIn(2)).toEqual(["Cam"]);
+
+    await setBilling({ planStatus: "active", planRenewsAt: new Date(Date.now() + 30 * 86_400_000) });
+    expect((await addEmployeeAction(null, form({ displayName: "Dee", email: "" })))?.error).toBeUndefined();
+
+    // Alabaster is never billed.
+    await asBusiness(state.db, null);
+    await state.db.update(schema.business).set({ trialEndsAt: new Date(0) }).where(eq(schema.business.id, 1));
+    state.user = { email: "owner@example.com" };
+    expect((await addEmployeeAction(null, form({ displayName: "Eli", email: "" })))?.error).toBeUndefined();
+  });
+});
+
+describe("starting a business without an invite", () => {
+  beforeEach(async () => {
+    await asBusiness(state.db, null);
+  });
+
+  it("anyone with a verified email gets a business on a free trial", async () => {
+    const { startBusinessAction } = await import("../start/actions");
+    state.user = { email: "fresh@shop.com" };
+    await expect(startBusinessAction(null, form({ name: "Bean Bar", timeZone: "America/Denver" }))).rejects.toThrow("REDIRECT /manage");
+    const bar = (await state.db.select().from(schema.business)).find((b) => b.name === "Bean Bar")!;
+    expect(bar.billingExempt).toBe(false);
+    expect(bar.trialEndsAt!.getTime()).toBeGreaterThan(Date.now() + 13 * 86_400_000);
+    expect((await addEmployeeAction(null, form({ displayName: "Dee", email: "" })))?.error).toBeUndefined();
+
+    state.user = { email: "unverified@shop.com", verified: false };
+    await expect(startBusinessAction(null, form({ name: "Nope", timeZone: "America/Denver" }))).rejects.toThrow("REDIRECT /");
+  });
 });
 
 const { createInviteAction } = await import("../platform/invites/actions");

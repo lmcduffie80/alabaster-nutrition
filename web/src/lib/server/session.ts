@@ -5,6 +5,9 @@ import { notFound, redirect, unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 import { getDb, type Db } from "@/db";
 import { withBusiness } from "@/db/tenant";
+import { planAccess } from "@/lib/domain/billing";
+import { billingOf } from "./billing";
+import { UserError } from "./errors";
 import { platformOwnerEmails } from "./invites";
 import { sign, verify } from "./secrets";
 import {
@@ -228,18 +231,35 @@ async function walled<T>(businessId: number, work: (db: Db) => Promise<T>): Prom
   return outcome.value;
 }
 
-export async function withManager<T>(work: (db: Db, manager: Manager) => Promise<T>, options: { account?: boolean } = {}) {
+/** The business's plan, read once per request. */
+export const planFor = cache(async (businessId: number) => {
+  const billing = await billingOf(await getDb(), businessId);
+  return { billing, access: planAccess(billing, new Date()) };
+});
+
+export const PLAN_INACTIVE_KIOSK = "This store's Metzey plan isn't active. Ask your manager.";
+
+/**
+ * Manager pages and actions. Once the plan has ended they all lead to Billing, except those passing
+ * `anyPlan` (Billing itself and the manager layout around it).
+ */
+export async function withManager<T>(
+  work: (db: Db, manager: Manager) => Promise<T>,
+  options: { account?: boolean; anyPlan?: boolean } = {},
+) {
   const manager = options.account ? await requireManagerAccount() : await requireManager();
+  if (!options.anyPlan && (await planFor(manager.businessId)).access === "ended") redirect("/manage/billing");
   return walled(manager.businessId, (db) => work(db, manager));
 }
 
 /** For routes that answer 403 instead of redirecting. */
 export async function withManagerOrNull<T>(work: (db: Db, manager: Manager) => Promise<T>): Promise<T | null> {
   const manager = await getManager();
-  if (!manager) return null;
+  if (!manager || (await planFor(manager.businessId)).access === "ended") return null;
   return walled(manager.businessId, (db) => work(db, manager));
 }
 
+/** Employees keep seeing their schedule whatever the plan; the page says when it has ended. */
 export async function withMember<T>(work: (db: Db, member: Member) => Promise<T>) {
   const viewer = await getViewer();
   if (viewer?.kind === "chooseBusiness") redirect("/choose-business");
@@ -248,5 +268,6 @@ export async function withMember<T>(work: (db: Db, member: Member) => Promise<T>
 }
 
 export async function withKiosk<T>(kiosk: KioskDevice, work: (db: Db) => Promise<T>) {
+  if ((await planFor(kiosk.businessId)).access === "ended") throw new UserError(PLAN_INACTIVE_KIOSK);
   return walled(kiosk.businessId, work);
 }

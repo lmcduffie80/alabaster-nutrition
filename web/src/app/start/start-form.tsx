@@ -15,7 +15,7 @@ const zones = [
   { id: "Pacific/Honolulu", label: "Hawaii" },
 ];
 
-export function StartForm({ invite }: { invite: string }) {
+export function StartForm({ invite }: { invite?: string }) {
   const [state, formAction] = useActionState(startBusinessAction, null);
   const zoneRef = useRef<HTMLSelectElement>(null);
   useEffect(() => {
@@ -25,7 +25,7 @@ export function StartForm({ invite }: { invite: string }) {
 
   return (
     <form action={formAction} className="grid gap-3">
-      <input type="hidden" name="invite" value={invite} />
+      {invite && <input type="hidden" name="invite" value={invite} />}
       <Field label="Business name">
         <input name="name" required maxLength={60} autoComplete="organization" className={inputClass} />
       </Field>

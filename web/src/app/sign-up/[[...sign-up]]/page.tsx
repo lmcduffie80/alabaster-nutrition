@@ -1,4 +1,5 @@
 import { SignUp } from "@clerk/nextjs";
+import Link from "next/link";
 import { Suspense } from "react";
 import { Wordmark } from "@/components/ui";
 
@@ -10,7 +11,17 @@ export default function SignUpPage() {
         <SignUp fallbackRedirectUrl="/" signInUrl="/sign-in" />
       </Suspense>
       <p className="max-w-sm text-center text-xs text-ink/50">
-        Use the email your manager added for you. Other emails can sign up but won&rsquo;t see anything.
+        Joining a team? Use the email your manager added for you. Owners: create an account, then set up your
+        business.
+      </p>
+      <p className="text-xs text-ink/50">
+        <Link href="/terms" className="hover:underline">
+          Terms
+        </Link>{" "}
+        ·{" "}
+        <Link href="/privacy" className="hover:underline">
+          Privacy
+        </Link>
       </p>
     </main>
   );

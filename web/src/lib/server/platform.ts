@@ -1,6 +1,7 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import type { Db } from "@/db";
+import { planAccess, type PlanAccess } from "@/lib/domain/billing";
 
 /** For the platform owner only: counts across every business, never any business's records themselves. */
 
@@ -18,12 +19,15 @@ export type BusinessUsage = {
   /** Clock-ins, clock-outs and breaks in the last `ACTIVE_DAYS` days. */
   recentPunches: number;
   lastPunchAt: Date | null;
+  plan: PlanAccess;
+  planRenewsAt: Date | null;
+  trialEndsAt: Date | null;
 };
 
 export async function businessUsage(db: Db, now: Date): Promise<BusinessUsage[]> {
   const since = new Date(now.getTime() - ACTIVE_DAYS * 86_400_000);
   const result = await db.execute(sql`
-    select b.id, b.name, b.created_at,
+    select b.id, b.name, b.created_at, b.billing_exempt, b.trial_ends_at, b.plan_status, b.plan_renews_at,
       (select count(*) from employee e where e.business_id = b.id and e.active)::int as team,
       (select count(*) from employee e where e.business_id = b.id and e.active and e.email is not null)::int as with_email,
       (select count(*) from employee e where e.business_id = b.id and e.active and e.role = 'manager')::int as managers,
@@ -34,6 +38,7 @@ export async function businessUsage(db: Db, now: Date): Promise<BusinessUsage[]>
     order by b.created_at, b.id
   `);
   const rows = (result as unknown as { rows: Record<string, unknown>[] }).rows;
+  const date = (value: unknown) => (value ? new Date(value as string) : null);
   return rows.map((row) => ({
     id: Number(row.id),
     name: String(row.name),
@@ -43,7 +48,18 @@ export async function businessUsage(db: Db, now: Date): Promise<BusinessUsage[]>
     managers: Number(row.managers),
     kiosks: Number(row.kiosks),
     recentPunches: Number(row.recent_punches),
-    lastPunchAt: row.last_punch_at ? new Date(row.last_punch_at as string) : null,
+    lastPunchAt: date(row.last_punch_at),
+    plan: planAccess(
+      {
+        billingExempt: Boolean(row.billing_exempt),
+        trialEndsAt: date(row.trial_ends_at),
+        planStatus: (row.plan_status as string | null) ?? null,
+        planRenewsAt: date(row.plan_renews_at),
+      },
+      now,
+    ),
+    planRenewsAt: date(row.plan_renews_at),
+    trialEndsAt: date(row.trial_ends_at),
   }));
 }
 
@@ -54,5 +70,7 @@ export function usageTotals(usage: BusinessUsage[]) {
     team: usage.reduce((sum, b) => sum + b.team, 0),
     withEmail: usage.reduce((sum, b) => sum + b.withEmail, 0),
     recentPunches: usage.reduce((sum, b) => sum + b.recentPunches, 0),
+    paying: usage.filter((b) => b.plan === "active").length,
+    trials: usage.filter((b) => b.plan === "trial").length,
   };
 }

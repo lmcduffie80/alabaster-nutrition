@@ -2,6 +2,8 @@ import "server-only";
 import { and, asc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import { withBusiness } from "@/db/tenant";
+import { SUPPORT_EMAIL } from "@/lib/company";
+import { trialEnd } from "@/lib/domain/billing";
 import { localDateOf, weekStartOf } from "@/lib/domain/time";
 import { tokenDigest } from "./secrets";
 import { ensureOwner, normalizeEmail } from "./team";
@@ -57,13 +59,16 @@ export async function createBusiness(
   input: { name: string; timeZone?: string; now?: Date; id?: number },
 ): Promise<number> {
   const timeZone = input.timeZone ?? "America/New_York";
+  const now = input.now ?? new Date();
   const [created] = await db
     .insert(schema.business)
     .values({
       ...(input.id ? { id: input.id } : {}),
       name: input.name,
       timeZone,
-      payPeriodAnchor: weekStartOf(localDateOf(input.now ?? new Date(), timeZone)),
+      payPeriodAnchor: weekStartOf(localDateOf(now, timeZone)),
+      billingExempt: input.id === FIRST_BUSINESS_ID,
+      trialEndsAt: trialEnd(now),
     })
     .returning({ id: schema.business.id });
   return created.id;
@@ -94,7 +99,7 @@ export async function soleManagerOf(db: Db, email: string): Promise<string[]> {
 }
 
 export function soleManagerMessage(businesses: string[]) {
-  return `You're the only manager of ${businesses.join(" and ")}. Add another manager with an email on the Team page first, or email shop@alabasternutrition.com to close the business.`;
+  return `You're the only manager of ${businesses.join(" and ")}. Add another manager with an email on the Team page first, or email ${SUPPORT_EMAIL} to close the business.`;
 }
 
 /** Unlinks `email` from every team it's on. The employee rows and their work records stay with the business. */

@@ -38,8 +38,16 @@ export const business = pgTable("business", {
   managerPinDigest: text("manager_pin_digest"),
   /** 0 = Sunday … 6 = Saturday. The weekly inventory count is due from the start of this day. */
   countWeekday: integer("count_weekday").notNull().default(0),
+  /** Never billed: Alabaster and the App Review demo. */
+  billingExempt: boolean("billing_exempt").notNull().default(false),
+  trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  /** Stripe's subscription status, as last reported by its webhook. */
+  planStatus: text("plan_status"),
+  planRenewsAt: timestamp("plan_renews_at", { withTimezone: true }),
   createdAt: createdAt(),
-});
+}, (t) => [uniqueIndex("business_stripe_customer_unique").on(t.stripeCustomerId)]);
 
 /** A one-time link the platform owner sends so someone can create a business. Not visible to any business. */
 export const businessInvite = pgTable(

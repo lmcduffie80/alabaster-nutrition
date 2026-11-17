@@ -14,7 +14,8 @@ export default function SignInPage() {
         </IdleNotice>
       </Suspense>
       <p className="max-w-sm text-center text-xs text-ink/50">
-        First time? Use the email your manager added for you and choose &ldquo;Sign up&rdquo;.
+        First time? Use the email your manager added for you and choose &ldquo;Sign up&rdquo;. Owners: sign up, then
+        set up your business.
       </p>
       <Link href="/privacy" className="text-xs text-ink/50 hover:underline">
         Privacy
