@@ -29,7 +29,7 @@ Return what is printed on the invoice pages, in order.
 - Use the quantity shipped or delivered when it differs from the quantity ordered.
 - If a field is missing, cut off, or unreadable, return null. Never guess a value.`;
 
-export const INVOICE_TIMEOUT_MS = 60_000;
+export const INVOICE_TIMEOUT_MS = 150_000;
 
 /** The one call to OpenAI. Pages are JPEG bytes, in order. */
 export async function readInvoice(pages: Uint8Array[]): Promise<InvoiceReading> {

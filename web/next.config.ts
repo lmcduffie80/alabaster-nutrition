@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   cacheComponents: false,
   serverExternalPackages: ["@electric-sql/pglite"],
   experimental: {
-    // Up to five resized invoice photos; Vercel caps request bodies at 4.5 MB.
+    // Up to twenty resized invoice pages; Vercel caps request bodies at 4.5 MB.
     serverActions: { bodySizeLimit: "4mb" },
   },
   turbopack: {

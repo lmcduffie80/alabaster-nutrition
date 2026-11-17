@@ -20,8 +20,23 @@ type LineValues = {
   invoiceDescription?: string;
   /** From a scan: the invoice's quantity, converted with the chosen item's pack size. */
   invoiceQuantity?: number | null;
+  invoiceUnit?: string;
+  /** Added as an item, with the invoice's code, when the delivery is saved. */
+  newItem?: { name: string; unit: string };
 };
 type Line = LineValues & { key: number };
+
+const NEW_ITEM = "new";
+
+/** A scanned product with a code that isn't an item yet starts as a new item. */
+function scannedLine(line: LineValues): LineValues {
+  if (line.itemId || !line.invoiceCode || !line.invoiceDescription || line.newItem) return line;
+  return {
+    ...line,
+    newItem: { name: line.invoiceDescription.slice(0, 80), unit: line.invoiceUnit?.toLowerCase().slice(0, 40) || "each" },
+    quantity: line.quantity || (line.invoiceQuantity != null ? String(line.invoiceQuantity) : ""),
+  };
+}
 
 export type DeliveryFormValues = {
   id?: string;
@@ -74,7 +89,9 @@ export function DeliveryForm({
   const [onShelf, setOnShelf] = useState(initial.onShelfForCount);
   const [reason, setReason] = useState("");
   const [lines, setLines] = useState<Line[]>(() =>
-    initial.lines.length ? initial.lines.map((line) => ({ ...line, key: nextKey++ })) : [blankLine()],
+    initial.lines.length
+      ? initial.lines.map((line) => ({ ...(initial.id ? line : scannedLine(line)), key: nextKey++ }))
+      : [blankLine()],
   );
   const [creatingFor, setCreatingFor] = useState<number | null>(null);
 
@@ -87,13 +104,16 @@ export function DeliveryForm({
   const choose = (line: Line, item: PickableItem | undefined) =>
     update(line.key, {
       itemId: item?.id ?? "",
+      newItem: undefined,
       ...(item && line.invoiceQuantity != null ? { quantity: String(round2(line.invoiceQuantity * item.packSize)) } : {}),
     });
+  const chooseNew = (line: Line) => update(line.key, { ...scannedLine({ ...line, itemId: "", newItem: undefined }), key: line.key });
 
   const total = round2(lines.reduce((sum, l) => sum + (money(l.lineTotal) ?? 0), 0));
   const expected = money(invoiceTotal);
   const mismatch = expected !== null && Math.abs(expected - total) > 0.01;
-  const unmatched = lines.filter((l) => !l.itemId && l.invoiceDescription).length;
+  const unmatched = lines.filter((l) => !l.itemId && !l.newItem && l.invoiceDescription).length;
+  const adding = lines.filter((l) => l.newItem).length;
 
   async function addSupplier(name: string) {
     setSupplierError(null);
@@ -156,8 +176,16 @@ export function DeliveryForm({
               <div key={line.key} className="rounded-xl border border-ink/10 p-2 sm:border-0 sm:p-0">
                 <div className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[1fr_8rem_7rem_2rem]">
                   <div className="col-span-2 sm:col-span-1">
-                    <select aria-label="Item" value={line.itemId} onChange={(e) => choose(line, itemOf(e.target.value))} className={inputClass}>
+                    <select
+                      aria-label="Item"
+                      value={line.newItem ? NEW_ITEM : line.itemId}
+                      onChange={(e) => (e.target.value === NEW_ITEM ? chooseNew(line) : choose(line, itemOf(e.target.value)))}
+                      className={inputClass}
+                    >
                       <option value="">Choose an item…</option>
+                      {line.invoiceCode && line.invoiceDescription && (
+                        <option value={NEW_ITEM}>New item: {line.newItem?.name ?? line.invoiceDescription.slice(0, 80)}</option>
+                      )}
                       {theirs.length > 0 && (
                         <optgroup label="From this supplier">
                           {theirs.map((i) => (
@@ -177,7 +205,7 @@ export function DeliveryForm({
                     </select>
                     {line.invoiceDescription && (
                       <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-ink/50">
-                        {!line.itemId && <Badge tone="red">Unmatched</Badge>}
+                        {line.newItem ? <Badge tone="sage">New item</Badge> : !line.itemId && <Badge tone="red">Unmatched</Badge>}
                         <span>
                           Invoice: {line.invoiceCode && <span className="font-mono">{line.invoiceCode} </span>}
                           {line.invoiceDescription}
@@ -185,7 +213,7 @@ export function DeliveryForm({
                         </span>
                         {!line.itemId && (
                           <button type="button" onClick={() => setCreatingFor(line.key)} className="font-semibold text-porcelain hover:underline">
-                            New item
+                            {line.newItem ? "Set details" : "New item"}
                           </button>
                         )}
                       </p>
@@ -200,7 +228,7 @@ export function DeliveryForm({
                       placeholder="0"
                       className={`${inputClass} text-right`}
                     />
-                    <span className="w-12 truncate text-xs text-ink/50">{item?.unit ?? ""}</span>
+                    <span className="w-12 truncate text-xs text-ink/50">{item?.unit ?? line.newItem?.unit ?? ""}</span>
                   </label>
                   <input
                     aria-label="Line total"
@@ -244,6 +272,13 @@ export function DeliveryForm({
             Total: <strong className="tabular-nums">{formatMoney(total)}</strong>
           </span>
         </div>
+        {adding > 0 && (
+          <p className="mt-1 text-sm text-ink/70">
+            {adding} {adding === 1 ? "product is" : "products are"} new and will be added as {adding === 1 ? "an item" : "items"} with the
+            invoice&rsquo;s SKU, starting stock as received, and &ldquo;order up to&rdquo; set to what you ordered. Pick an existing item instead
+            if it&rsquo;s one you already have.
+          </p>
+        )}
         {unmatched > 0 && (
           <p className="mt-1 text-sm font-medium text-red-700">
             {unmatched} {unmatched === 1 ? "line isn't" : "lines aren't"} matched to an item. Choose one, add a new item, or tap ✕ to ignore it
@@ -312,8 +347,8 @@ function NewItem({
     unit: "",
     spotId: spots[0]?.id ?? "",
     packSize: "1",
-    reorderAt: "",
-    orderUpTo: line.invoiceQuantity != null ? String(line.invoiceQuantity) : "",
+    reorderAt: line.invoiceQuantity ? "0" : "",
+    orderUpTo: line.invoiceQuantity ? String(line.invoiceQuantity) : "",
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

@@ -266,6 +266,39 @@ describe("deliveries", () => {
     await rejects(recordDelivery(db, input(sysco, itemId, { invoiceNumber: "inv-1" }), who), /already recorded/);
   });
 
+  it("adds new products on a delivery as items with the invoice's SKU", async () => {
+    const herbalife = await addSupplier(db, { name: "Herbalife", contact: "", notes: "" });
+    const { itemId } = await countedItem(2);
+    const id = await recordDelivery(
+      db,
+      input(herbalife, itemId, {
+        lines: [
+          { itemId, quantity: "1", lineTotal: "" },
+          { itemId: "", quantity: "3", lineTotal: "28.98", invoiceCode: "179M", invoiceDescription: "DRINK MIX BLUEBERRY 4.4OZ", newItem: { name: "DRINK MIX BLUEBERRY 4.4OZ", unit: "" } },
+        ],
+      }),
+      who,
+    );
+    const added = (await listItems(db)).find((i) => i.supplierCode === "179M")!;
+    expect(added).toMatchObject({
+      name: "DRINK MIX BLUEBERRY 4.4OZ",
+      unit: "each",
+      supplierId: herbalife,
+      spotId: backRoom,
+      startingQuantity: 3,
+      startingOn: "2026-11-16",
+      reorderAt: 0,
+      orderUpTo: 3,
+    });
+    expect((await getDelivery(db, id))!.lines.map((l) => l.name).sort()).toEqual(["DRINK MIX BLUEBERRY 4.4OZ", "Vanilla protein"]);
+    expect(await stockOf(added.id)).toMatchObject({ onHand: 3 });
+
+    const newLine = { itemId: "", quantity: "1", lineTotal: "", newItem: { name: "Again", unit: "tub" } };
+    await rejects(updateDelivery(db, id, input(herbalife, itemId, { lines: [newLine] }), { ...who, reason: "x" }), /Choose an item/);
+    await rejects(recordDelivery(db, input(herbalife, itemId, { lines: [{ ...newLine, newItem: { name: " ", unit: "" } }] }), who), /name/);
+    expect((await listItems(db)).length).toBe(2);
+  });
+
   it("audits edits and deletes, and deleted deliveries stop counting", async () => {
     const { sysco, itemId } = await countedItem(2);
     const id = await recordDelivery(db, input(sysco, itemId), who);

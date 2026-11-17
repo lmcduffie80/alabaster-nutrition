@@ -5,7 +5,8 @@ import { useRef, useState } from "react";
 import { Button, Card } from "@/components/ui";
 import { scanInvoiceAction, type ScanResult } from "./scan-actions";
 
-const MAX_PAGES = 5;
+/** Matches MAX_SCAN_PAGES on the server. */
+const MAX_PAGES = 20;
 const MAX_SIDE = 2000;
 const MAX_PHOTO_BYTES = 1_400_000;
 const MAX_TOTAL_BYTES = 3_800_000;
@@ -23,12 +24,19 @@ async function photoCanvas(file: File): Promise<HTMLCanvasElement> {
   return canvas;
 }
 
-/** As JPEG, small enough for five pages to fit in one upload. */
+/** As JPEG within `budget` bytes, so every page fits in one upload; big orders get smaller pages. */
 async function shrink(canvas: HTMLCanvasElement, budget: number): Promise<Blob> {
-  let blob: Blob | null = null;
-  for (const quality of [0.82, 0.7, 0.6, 0.5, 0.4]) {
-    blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
-    if (blob && blob.size <= budget) return blob;
+  let source = canvas;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    for (const quality of [0.82, 0.7, 0.6, 0.5, 0.4]) {
+      const blob = await new Promise<Blob | null>((resolve) => source.toBlob(resolve, "image/jpeg", quality));
+      if (blob && blob.size <= budget) return blob;
+    }
+    const smaller = document.createElement("canvas");
+    smaller.width = Math.round(source.width * 0.8);
+    smaller.height = Math.round(source.height * 0.8);
+    smaller.getContext("2d")!.drawImage(source, 0, 0, smaller.width, smaller.height);
+    source = smaller;
   }
   throw new Error("too large");
 }
@@ -135,7 +143,7 @@ export function ScanCard({
       </div>
       {status.kind === "reading" && (
         <p className="basis-full text-sm text-ink/60">
-          Reading {status.pages} {status.pages === 1 ? "page" : "pages"}. This can take up to a minute.
+          Reading {status.pages} {status.pages === 1 ? "page" : "pages"}. {status.pages > 5 ? "Big orders can take two minutes." : "This can take up to a minute."}
         </p>
       )}
       {status.kind === "notice" && (
