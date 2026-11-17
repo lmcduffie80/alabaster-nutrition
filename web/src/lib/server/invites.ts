@@ -3,6 +3,7 @@ import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { schema, type Db } from "@/db";
 import { withBusiness } from "@/db/tenant";
+import { SUPPORT_EMAIL } from "@/lib/company";
 import { UserError } from "./errors";
 import { newToken, tokenDigest } from "./secrets";
 import { createBusiness } from "./system";
@@ -106,14 +107,39 @@ export const inviteProblemMessage: Record<InviteProblem, string> = {
   wrongEmail: "This sign-up link is for a different email. Sign in with the email it was sent to.",
 };
 
-/** Creates the business and its first manager, and uses up the invite, all at once. Returns the new business. */
-export async function redeemInvite(
-  db: Db,
-  input: { token: string; email: string; displayName: string; businessName: string; timeZone: string; now: Date },
-): Promise<number> {
+type NewBusiness = { email: string; displayName: string; businessName: string; timeZone: string; now: Date };
+
+function parseNewBusiness(input: NewBusiness) {
   const name = businessName.safeParse(input.businessName);
   if (!name.success) throw new UserError(name.error.issues[0].message);
   if (!validTimeZone(input.timeZone)) throw new UserError("Choose a time zone.");
+  return name.data;
+}
+
+/** Keeps one person from starting free trials over and over. */
+export const MAX_MANAGED_BUSINESSES = 3;
+
+/** Anyone with a verified email can start a business on a free trial. Returns the new business. */
+export async function createOwnBusiness(db: Db, input: NewBusiness): Promise<number> {
+  const name = parseNewBusiness(input);
+  const email = normalizeEmail(input.email);
+  const managed = await db
+    .select({ id: schema.employee.id })
+    .from(schema.employee)
+    .where(and(eq(schema.employee.email, email), eq(schema.employee.role, "manager"), eq(schema.employee.active, true)));
+  if (managed.length >= MAX_MANAGED_BUSINESSES) {
+    throw new UserError(`You already manage ${MAX_MANAGED_BUSINESSES} businesses. Email ${SUPPORT_EMAIL} to add another.`);
+  }
+  return db.transaction(async (tx) => {
+    const businessId = await createBusiness(tx, { name, timeZone: input.timeZone, now: input.now });
+    await withBusiness(tx, businessId, (inside) => ensureOwner(inside, email, input.displayName));
+    return businessId;
+  });
+}
+
+/** Creates the business and its first manager, and uses up the invite, all at once. Returns the new business. */
+export async function redeemInvite(db: Db, input: NewBusiness & { token: string }): Promise<number> {
+  const name = parseNewBusiness(input);
   const check = await checkInvite(db, input.token, input.email, input.now);
   if (check.kind !== "ok") throw new UserError(inviteProblemMessage[check.kind]);
 
@@ -131,7 +157,7 @@ export async function redeemInvite(
       )
       .returning({ id: schema.businessInvite.id });
     if (!claimed) throw new UserError(inviteProblemMessage.used);
-    const businessId = await createBusiness(tx, { name: name.data, timeZone: input.timeZone, now: input.now });
+    const businessId = await createBusiness(tx, { name, timeZone: input.timeZone, now: input.now });
     await tx.update(schema.businessInvite).set({ businessId }).where(eq(schema.businessInvite.id, claimed.id));
     // Last: `withBusiness` drops this transaction to the app role until it ends.
     await withBusiness(tx, businessId, (inside) => ensureOwner(inside, check.email, input.displayName));

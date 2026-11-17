@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FramedPanel, Wordmark } from "@/components/ui";
 import { getBusiness } from "@/lib/server/business";
-import { currentKiosk, withKiosk } from "@/lib/server/session";
+import { currentKiosk, PLAN_INACTIVE_KIOSK, planFor, withKiosk } from "@/lib/server/session";
 import { Kiosk } from "./kiosk";
 
 export const metadata: Metadata = { title: "Time Clock · Metzey" };
@@ -19,6 +19,20 @@ export default async function KioskPage() {
             Clocking in only works on the store iPad. To set this device up as the kiosk, the manager signs in and
             chooses <strong>Settings → Make this the store kiosk</strong>.
           </p>
+          <Link href="/sign-in" className="mt-4 inline-block text-sm font-semibold text-porcelain hover:underline">
+            Manager sign-in
+          </Link>
+        </FramedPanel>
+      </main>
+    );
+  }
+  if ((await planFor(kiosk.businessId)).access === "ended") {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-8 px-6">
+        <Wordmark size="lg" />
+        <FramedPanel className="max-w-md px-8 py-6 text-center">
+          <p className="font-serif text-2xl font-semibold">The time clock is paused</p>
+          <p className="mt-2 text-sm text-ink/70">{PLAN_INACTIVE_KIOSK}</p>
           <Link href="/sign-in" className="mt-4 inline-block text-sm font-semibold text-porcelain hover:underline">
             Manager sign-in
           </Link>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { planAccess, trialDaysLeft, trialEnd, type BillingFields } from "./billing";
 import { afterFailedAttempt, isSimplePin, MAX_PIN_ATTEMPTS, pinProblem } from "./pins";
 import { buildShifts, currentStatus, isAllowed, type EffectivePunch, type PunchKind } from "./punches";
 import {
@@ -223,5 +224,39 @@ describe("timesheets", () => {
     expect(detail.split("\r\n")[1]).toBe(`"'=HYPERLINK(""x""), Ava",2026-11-09,7:00 AM,1:15 PM,0,6.25,`);
     const totals = timesheetTotalsCsv([row], new Map([["ava", "Ava"]]), new Set(["ava"]));
     expect(totals).toBe("Employee,Hours,Break Minutes,Approved\r\nAva,6.25,0,yes\r\n");
+  });
+});
+
+describe("plan access", () => {
+  const now = new Date("2026-12-01T12:00:00Z");
+  const base: BillingFields = { billingExempt: false, trialEndsAt: null, planStatus: null, planRenewsAt: null };
+  const days = (n: number) => new Date(now.getTime() + n * 86_400_000);
+
+  it("never bills exempt businesses", () => {
+    expect(planAccess({ ...base, billingExempt: true }, now)).toBe("exempt");
+  });
+
+  it("runs a 14-day trial, then ends without a plan", () => {
+    const trial = { ...base, trialEndsAt: trialEnd(days(-13.5)) };
+    expect(planAccess(trial, now)).toBe("trial");
+    expect(trialDaysLeft(trial, now)).toBe(1);
+    expect(planAccess({ ...base, trialEndsAt: days(-0.01) }, now)).toBe("ended");
+    expect(planAccess(base, now)).toBe("ended");
+  });
+
+  it("counts a paid plan as active even after the trial", () => {
+    expect(planAccess({ ...base, trialEndsAt: days(-30), planStatus: "active", planRenewsAt: days(10) }, now)).toBe("active");
+  });
+
+  it("gives a failed renewal 7 days of grace", () => {
+    const pastDue = { ...base, planStatus: "past_due" };
+    expect(planAccess({ ...pastDue, planRenewsAt: days(-6) }, now)).toBe("active");
+    expect(planAccess({ ...pastDue, planRenewsAt: days(-8) }, now)).toBe("ended");
+  });
+
+  it("ends cancelled and unpaid plans", () => {
+    for (const planStatus of ["canceled", "unpaid", "incomplete_expired", "paused"]) {
+      expect(planAccess({ ...base, planStatus, planRenewsAt: days(5) }, now)).toBe("ended");
+    }
   });
 });

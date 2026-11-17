@@ -6,7 +6,7 @@ import { Card, ColorDot, employeeColor, FramedPanel, SectionTitle, Wordmark } fr
 import { addDays, formatDay, formatTime, localDateOf, startOfLocalDay, weekStartOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
 import { publishedShifts } from "@/lib/server/schedule";
-import { withMember } from "@/lib/server/session";
+import { planFor, withMember } from "@/lib/server/session";
 import { listEmployees, viewablePins } from "@/lib/server/team";
 import { setNotifyEmailAction } from "./actions";
 import { MyPin } from "./my-pin";
@@ -25,6 +25,7 @@ export default async function EmployeeSchedulePage() {
     const myPin = (await viewablePins(db, [viewer.employeeId])).get(viewer.employeeId) ?? null;
     return { viewer, timeZone, today, weekStart, shifts, team, myPin };
   });
+  const planEnded = (await planFor(viewer.businessId)).access === "ended";
   const mine = shifts.filter((s) => s.employeeId === viewer.employeeId);
   const emailsOn = team.get(viewer.employeeId)?.notifyEmail ?? true;
   const days = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i)).filter((d) => d >= today);
@@ -37,6 +38,20 @@ export default async function EmployeeSchedulePage() {
         <Wordmark business={viewer.businessName} />
         <UserButton />
       </header>
+      {planEnded && (
+        <p className="mt-4 rounded-xl bg-[#f3ead9] px-4 py-3 text-sm">
+          {viewer.kind === "manager" ? (
+            <>
+              Your Metzey plan has ended, so the time clock is paused.{" "}
+              <Link href="/manage/billing" className="font-semibold underline">
+                Billing
+              </Link>
+            </>
+          ) : (
+            "This store's Metzey plan has ended, so the time clock is paused. Ask your manager."
+          )}
+        </p>
+      )}
 
       <FramedPanel className="mt-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-ink/60">Your next shift</p>

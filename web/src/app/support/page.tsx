@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Wordmark } from "@/components/ui";
+import { COMPANY, SUPPORT_EMAIL } from "@/lib/company";
 
 export const metadata: Metadata = { title: "Support · Metzey" };
 
-const CONTACT = "shop@alabasternutrition.com";
+const CONTACT = SUPPORT_EMAIL;
 
 export default function SupportPage() {
   return (
@@ -22,8 +23,12 @@ export default function SupportPage() {
       </p>
 
       <Section title="Getting started">
-        Metzey is invite-only for now. Email us to get a sign-up link for your business. Staff don&rsquo;t need their own
-        link: the manager adds them on the Team page, and they sign in with that email.
+        To set up your business, create an account, then choose{" "}
+        <Link href="/start" className="text-porcelain hover:underline">
+          Set up your business
+        </Link>
+        . New businesses start with a free trial. Staff don&rsquo;t sign up on their own: the manager adds them on the
+        Team page, and they sign in with that email.
       </Section>
 
       <Section title="Clocking in">
@@ -41,6 +46,15 @@ export default function SupportPage() {
           privacy policy
         </Link>{" "}
         for what we keep and why.
+      </Section>
+
+      <Section title="Plans and billing">
+        Managers handle their plan under <strong>Billing</strong> on the website: subscribe, update the card, download
+        invoices, or cancel. See the{" "}
+        <Link href="/terms" className="text-porcelain hover:underline">
+          terms
+        </Link>{" "}
+        for how billing and refunds work. Metzey is provided by {COMPANY}.
       </Section>
     </main>
   );

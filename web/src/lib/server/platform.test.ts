@@ -43,6 +43,7 @@ describe("business usage", () => {
     expect(usage[0]).toMatchObject({ team: 2, withEmail: 1, managers: 1, kiosks: 1, recentPunches: 2 });
     expect(usage[0].lastPunchAt).toEqual(daysAgo(1.8));
     expect(usage[1]).toMatchObject({ team: 0, recentPunches: 0, lastPunchAt: null });
-    expect(usageTotals(usage)).toEqual({ businesses: 2, activeBusinesses: 1, team: 2, withEmail: 1, recentPunches: 2 });
+    expect(usage.map((b) => b.plan)).toEqual(["exempt", "trial"]);
+    expect(usageTotals(usage)).toEqual({ businesses: 2, activeBusinesses: 1, team: 2, withEmail: 1, recentPunches: 2, paying: 0, trials: 1 });
   });
 });
