@@ -84,7 +84,12 @@ export async function checkoutUrl(db: Db, businessId: number, email: string, ori
 export async function portalUrl(db: Db, businessId: number, origin: string): Promise<string> {
   const { stripeCustomerId } = await billingOf(db, businessId);
   if (!stripeCustomerId) throw new UserError("There's no billing account yet. Subscribe first.");
-  const session = await stripe().billingPortal.sessions.create({ customer: stripeCustomerId, return_url: `${origin}/manage/billing` });
+  const session = await stripe().billingPortal.sessions.create({
+    customer: stripeCustomerId,
+    return_url: `${origin}/manage/billing`,
+    // Unset: the portal settings marked default in the Stripe dashboard.
+    ...(process.env.STRIPE_PORTAL_CONFIGURATION ? { configuration: process.env.STRIPE_PORTAL_CONFIGURATION } : {}),
+  });
   return session.url;
 }
 
