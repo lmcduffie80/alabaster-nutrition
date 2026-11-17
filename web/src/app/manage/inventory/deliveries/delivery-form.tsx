@@ -3,7 +3,7 @@
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { Badge, Button, Field, inputClass } from "@/components/ui";
-import { formatMoney, itemTypeLabel, itemTypes, parseMoney, round2 } from "@/lib/domain/inventory";
+import { formatMoney, itemTypeLabel, itemTypes, levelsFromOrder, parseMoney, round2 } from "@/lib/domain/inventory";
 import type { FormState } from "../../actions";
 import { ActionForm, SubmitButton } from "../../forms";
 import { quickAddItemAction, quickAddSupplierAction } from "./scan-actions";
@@ -347,8 +347,8 @@ function NewItem({
     unit: "",
     spotId: spots[0]?.id ?? "",
     packSize: "1",
-    reorderAt: line.invoiceQuantity ? "0" : "",
-    orderUpTo: line.invoiceQuantity ? String(line.invoiceQuantity) : "",
+    reorderAt: line.invoiceQuantity ? String(levelsFromOrder(line.invoiceQuantity).reorderAt) : "",
+    orderUpTo: line.invoiceQuantity ? String(levelsFromOrder(line.invoiceQuantity).orderUpTo) : "",
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Card, Field, inputClass } from "@/components/ui";
-import { formatMoney, itemTypeLabel, itemTypes, parseMoney, round2 } from "@/lib/domain/inventory";
+import { DEFAULT_REORDER_AT, formatMoney, itemTypeLabel, itemTypes, levelsFromOrder, parseMoney, round2 } from "@/lib/domain/inventory";
 import { ActionForm, SubmitButton } from "../../../forms";
 import { createItemsFromReceiptAction } from "../../../inventory-actions";
 import type { PickableItem, PickableSpot, PickableSupplier } from "../../deliveries/delivery-form";
@@ -56,6 +56,12 @@ type Receipt = {
 
 let nextKey = 1;
 
+/** "Order up to" for what was received: what was ordered, at least one more than the reorder point. */
+function upTo(received: string) {
+  const ordered = Number(received);
+  return received.trim() && ordered > 0 ? String(levelsFromOrder(ordered).orderUpTo) : "";
+}
+
 function times(quantity: number | null, packSize: string) {
   const pack = Number(packSize);
   return quantity === null || !Number.isFinite(pack) || pack <= 0 ? "" : String(round2(quantity * pack));
@@ -87,7 +93,7 @@ export function ReceiptItems({
           if (update.packSize !== undefined) next.received = times(line.invoiceQuantity, update.packSize);
           if (update.packSize !== undefined || update.received !== undefined) {
             if (!next.onHandTyped) next.onHand = next.received;
-            if (!next.orderUpToTyped) next.orderUpTo = next.received;
+            if (!next.orderUpToTyped) next.orderUpTo = upTo(next.received);
           }
           return next;
         }),
@@ -147,8 +153,8 @@ export function ReceiptItems({
               onHand: received,
               onHandTyped: false,
               lineTotal: line.lineTotal,
-              reorderAt: "",
-              orderUpTo: received,
+              reorderAt: String(DEFAULT_REORDER_AT),
+              orderUpTo: upTo(received),
               orderUpToTyped: false,
             });
           }
@@ -189,7 +195,7 @@ export function ReceiptItems({
                     unit: l.unit,
                     spotId: l.spotId,
                     packSize: l.packSize,
-                    reorderAt: l.reorderAt || (Number(l.orderUpTo) > 0 ? "0" : ""),
+                    reorderAt: l.orderUpTo.trim() ? l.reorderAt : "",
                     orderUpTo: l.orderUpTo,
                     defaultUnitCost: "",
                   },
@@ -387,7 +393,7 @@ function NewItemLine({ line, spots, onChange }: { line: NewLine; spots: Pickable
                 <Field label="Line total">
                   <input value={line.lineTotal} onChange={set("lineTotal")} inputMode="decimal" placeholder="$" className={inputClass} />
                 </Field>
-                <Field label="Reorder at" hint="Optional.">
+                <Field label="Reorder at" hint="Low at this many.">
                   <input value={line.reorderAt} onChange={set("reorderAt")} inputMode="decimal" className={inputClass} />
                 </Field>
                 <Field label="Order up to" hint="What you ordered.">
