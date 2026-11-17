@@ -24,7 +24,7 @@ export function RecordDelivery({
     <div className="space-y-3">
       <ScanCard
         title="Have the invoice?"
-        hint={`Take a photo of each page (up to ${MAX_SCAN_PHOTOS}) and the form fills itself in.`}
+        hint={`Take a photo of each page, or upload the order PDF (up to ${MAX_SCAN_PHOTOS} pages), and the form fills itself in.`}
         buttonLabel="Scan invoice"
         onScanned={(result) => {
           setFormKey((k) => k + 1);
