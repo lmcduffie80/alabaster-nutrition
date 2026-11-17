@@ -28,6 +28,8 @@ type NewLine = {
   lineTotal: string;
   reorderAt: string;
   orderUpTo: string;
+  /** Once typed, "order up to" stops following "received". */
+  orderUpToTyped: boolean;
 };
 
 type ExistingLine = {
@@ -83,7 +85,10 @@ export function ReceiptItems({
           if (line.key !== key) return line;
           const next = { ...line, ...update };
           if (update.packSize !== undefined) next.received = times(line.invoiceQuantity, update.packSize);
-          if (!next.onHandTyped && (update.packSize !== undefined || update.received !== undefined)) next.onHand = next.received;
+          if (update.packSize !== undefined || update.received !== undefined) {
+            if (!next.onHandTyped) next.onHand = next.received;
+            if (!next.orderUpToTyped) next.orderUpTo = next.received;
+          }
           return next;
         }),
       };
@@ -113,7 +118,7 @@ export function ReceiptItems({
     <div className="space-y-3">
       <ScanCard
         title="Scan an itemized receipt"
-        hint={`Take a photo of each page (up to ${MAX_SCAN_PHOTOS}). Each product becomes a new item with its code and what's on hand.`}
+        hint={`Take a photo of each page, or upload the order PDF (up to ${MAX_SCAN_PHOTOS} pages). Each product becomes a new item with its code, what's on hand, and what you ordered as its order-up-to level.`}
         buttonLabel={receipt ? "Scan another" : "Scan receipt"}
         onScanned={(result) => {
           if (result.kind === "unreadable") {
@@ -143,7 +148,8 @@ export function ReceiptItems({
               onHandTyped: false,
               lineTotal: line.lineTotal,
               reorderAt: "",
-              orderUpTo: "",
+              orderUpTo: received,
+              orderUpToTyped: false,
             });
           }
           setReceipt({
@@ -384,8 +390,13 @@ function NewItemLine({ line, spots, onChange }: { line: NewLine; spots: Pickable
                 <Field label="Reorder at" hint="Optional.">
                   <input value={line.reorderAt} onChange={set("reorderAt")} inputMode="decimal" className={inputClass} />
                 </Field>
-                <Field label="Order up to" hint="Optional.">
-                  <input value={line.orderUpTo} onChange={set("orderUpTo")} inputMode="decimal" className={inputClass} />
+                <Field label="Order up to" hint="What you ordered.">
+                  <input
+                    value={line.orderUpTo}
+                    onChange={(e) => onChange({ orderUpTo: e.target.value, orderUpToTyped: true })}
+                    inputMode="decimal"
+                    className={inputClass}
+                  />
                 </Field>
               </div>
             </>

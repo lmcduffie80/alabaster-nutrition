@@ -313,7 +313,7 @@ function NewItem({
     spotId: spots[0]?.id ?? "",
     packSize: "1",
     reorderAt: "",
-    orderUpTo: "",
+    orderUpTo: line.invoiceQuantity != null ? String(line.invoiceQuantity) : "",
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
