@@ -8,7 +8,9 @@ import { ActionForm, SubmitButton } from "../../forms";
 import { addItemAction, addSpotAction, setItemActiveAction, updateItemAction, updateSpotAction } from "../../inventory-actions";
 
 export default async function ItemsPage({ searchParams }: PageProps<"/manage/inventory/items">) {
-  const added = (await searchParams).added === "receipt";
+  const query = await searchParams;
+  const added = query.added === "receipt";
+  const editing = typeof query.edit === "string" ? query.edit : null;
   return withManager(async (db) => {
     const [items, spots, suppliers] = await Promise.all([
       listItems(db, { includeInactive: true }),
@@ -77,7 +79,7 @@ export default async function ItemsPage({ searchParams }: PageProps<"/manage/inv
         <div className="space-y-2">
           {active.length === 0 && <p className="text-sm text-ink/50">No items yet.</p>}
           {active.map((item) => (
-            <ItemCard key={item.id} item={item} spots={spots} suppliers={suppliers} />
+            <ItemCard key={item.id} item={item} spots={spots} suppliers={suppliers} open={item.id === editing} />
           ))}
         </div>
 
@@ -209,10 +211,10 @@ function ItemFields({ item, spots, suppliers }: { item?: Item; spots: Spot[]; su
   );
 }
 
-function ItemCard({ item, spots, suppliers }: { item: Item; spots: Spot[]; suppliers: Supplier[] }) {
+function ItemCard({ item, spots, suppliers, open }: { item: Item; spots: Spot[]; suppliers: Supplier[]; open: boolean }) {
   return (
-    <Card className="p-0">
-      <details className="group">
+    <Card className={`scroll-mt-4 p-0 ${open ? "ring-2 ring-porcelain/40" : ""}`} id={`item-${item.id}`}>
+      <details className="group" open={open}>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm">
           <span>
             <span className="font-medium">{item.name}</span>

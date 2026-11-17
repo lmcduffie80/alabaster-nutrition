@@ -98,6 +98,27 @@ describe("matching a scanned invoice", () => {
     expect(prefill.lines.map((l) => l.itemId)).toEqual([coffee, blueberry]);
   });
 
+  it("combines the same product listed twice on one invoice", async () => {
+    const prefill = await matchInvoice(
+      db,
+      reading({
+        lines: [
+          line({ itemCode: "205K", description: "LIFTOFF ORANGE", quantity: 2, lineTotal: 40 }),
+          line({ itemCode: "206K", description: "LIFTOFF LEMON LIME", quantity: 1, lineTotal: 20 }),
+          line({ itemCode: "205k", description: "LIFTOFF ORANGE", quantity: 1, unitPrice: 20 }),
+          line({ description: "Shipping", lineTotal: 16 }),
+          line({ description: "shipping", lineTotal: 4 }),
+        ],
+      }),
+      today,
+    );
+    expect(prefill.lines.map((l) => [l.invoiceCode ?? l.invoiceDescription, l.invoiceQuantity, l.lineTotal])).toEqual([
+      ["205K", 3, "60"],
+      ["206K", 1, "20"],
+      ["Shipping", null, "20"],
+    ]);
+  });
+
   it("offers an unknown supplier, and falls back to today for missing or future dates", async () => {
     const prefill = await matchInvoice(db, reading({ supplierName: "Restaurant Depot", invoiceDate: null }), today);
     expect(prefill).toMatchObject({ supplierId: "", unknownSupplier: "Restaurant Depot", receivedOn: today });
