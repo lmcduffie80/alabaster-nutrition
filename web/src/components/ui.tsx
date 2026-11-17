@@ -19,8 +19,12 @@ export function FramedPanel({ children, className = "" }: { children: ReactNode;
   );
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-2xl border border-ink/10 bg-white p-4 shadow-sm ${className}`}>{children}</div>;
+export function Card({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
+  return (
+    <div id={id} className={`rounded-2xl border border-ink/10 bg-white p-4 shadow-sm ${className}`}>
+      {children}
+    </div>
+  );
 }
 
 type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";

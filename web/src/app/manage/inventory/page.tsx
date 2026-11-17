@@ -81,6 +81,7 @@ export default async function StockPage({ searchParams }: PageProps<"/manage/inv
                     <th className="px-4 py-2 font-medium">Item</th>
                     <th className="px-4 py-2 font-medium">On hand</th>
                     <th className="px-4 py-2 font-medium">Reorder at</th>
+                    <th className="px-4 py-2 font-medium">Order up to</th>
                     <th className="px-4 py-2 text-right font-medium">Cost each</th>
                     <th className="px-4 py-2 text-right font-medium">Value</th>
                     <th className="px-4 py-2 font-medium">Last counted</th>
@@ -92,14 +93,25 @@ export default async function StockPage({ searchParams }: PageProps<"/manage/inv
                     .map((r) => (
                       <tr key={r.id}>
                         <td className="px-4 py-2">
-                          <span className="font-medium">{r.name}</span>
-                          {r.supplierName && <span className="block text-xs text-ink/50">{r.supplierName}</span>}
+                          <Link
+                            href={`/manage/inventory/items?edit=${r.id}#item-${r.id}`}
+                            className="font-medium hover:text-porcelain hover:underline"
+                          >
+                            {r.name}
+                          </Link>
+                          <span className="block text-xs text-ink/50">
+                            {r.supplierName && `${r.supplierName} · `}
+                            <Link href={`/manage/inventory/items?edit=${r.id}#item-${r.id}`} className="font-semibold text-porcelain hover:underline">
+                              Edit
+                            </Link>
+                          </span>
                         </td>
                         <td className="px-4 py-2 tabular-nums">
                           {r.onHand === null ? <span className="text-ink/40">Not counted yet</span> : formatQuantity(r.onHand, r.unit)}{" "}
                           {r.low && <Badge tone="red">Low</Badge>}
                         </td>
                         <td className="px-4 py-2 tabular-nums text-ink/70">{formatQuantity(r.reorderAt, r.unit)}</td>
+                        <td className="px-4 py-2 tabular-nums text-ink/70">{formatQuantity(r.orderUpTo, r.unit)}</td>
                         <td className="px-4 py-2 text-right tabular-nums text-ink/70">
                           {r.unitCost === null ? <span className="text-ink/40">No price</span> : formatMoney(r.unitCost)}
                         </td>

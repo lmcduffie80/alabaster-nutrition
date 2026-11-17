@@ -52,13 +52,36 @@ const amount = (value: number | null) => (value === null ? "" : String(round2(va
 /** "HP Coffee Crmel Mchiato 347G" and "hp coffee crmel mchiato 347 g" are the same product. */
 const words = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 
+type ReadLine = InvoiceReading["lines"][number];
+const sum = (a: number | null, b: number | null) => (a === null && b === null ? null : round2((a ?? 0) + (b ?? 0)));
+
+/** The same product on two lines of one invoice (same code, or same description without one) becomes one line. */
+export function combineLikeLines(lines: ReadLine[]): ReadLine[] {
+  const byKey = new Map<string, ReadLine>();
+  const out: ReadLine[] = [];
+  for (const line of lines) {
+    const key = code(line.itemCode) ?? (words(line.description) ? `~${words(line.description)}` : null);
+    const same = key ? byKey.get(key) : undefined;
+    if (!same) {
+      const copy = { ...line };
+      if (key) byKey.set(key, copy);
+      out.push(copy);
+      continue;
+    }
+    const total = (l: ReadLine) => l.lineTotal ?? (l.quantity !== null && l.unitPrice !== null ? l.quantity * l.unitPrice : null);
+    same.lineTotal = sum(total(same), total(line));
+    same.quantity = sum(same.quantity, line.quantity);
+  }
+  return out;
+}
+
 /** Turns what the model read into a delivery form: matched supplier, items by code, quantities in count units. */
 export async function matchInvoice(db: Db, reading: InvoiceReading, today: LocalDate): Promise<ScanPrefill> {
   const [suppliers, items] = await Promise.all([listSuppliers(db), listItems(db)]);
   const found = reading.supplierName ? suppliers.find((s) => sameSupplier(reading.supplierName!, s.name)) : undefined;
   const supplierId = found?.id ?? "";
 
-  const lines = reading.lines.map((line): ScannedLine => {
+  const lines = combineLikeLines(reading.lines).map((line): ScannedLine => {
     const lineCode = code(line.itemCode);
     const description = words(line.description);
     const byCode = lineCode ? items.filter((i) => code(i.supplierCode) === lineCode) : [];
