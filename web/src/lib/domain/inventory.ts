@@ -25,6 +25,13 @@ export function countDue(input: { now: Date; weekday: number; timeZone: string; 
   return input.lastFinishedAt === null || input.lastFinishedAt < dueFrom;
 }
 
+export const DEFAULT_REORDER_AT = 1;
+
+/** Levels for an item set up from an order: reorder at 1, and order back up to what was ordered (at least 2). */
+export function levelsFromOrder(ordered: number) {
+  return { reorderAt: DEFAULT_REORDER_AT, orderUpTo: Math.max(round2(ordered), DEFAULT_REORDER_AT + 1) };
+}
+
 /** Never low without a reorder level. */
 export function isLow(onHand: number | null, reorderAt: number | null) {
   return onHand !== null && reorderAt !== null && onHand <= reorderAt;
@@ -38,7 +45,8 @@ export function reorderAmount(onHand: number | null, orderUpTo: number | null) {
 
 /**
  * Where on-hand stock is measured from: the last count, or the starting stock when it is newer (an item
- * set up from a receipt and not counted since). Also says which deliveries came after it.
+ * set up from a receipt and not counted since). Also says which deliveries came after it. `null` for an
+ * item never counted or set up, whose stock is everything delivered.
  */
 export function stockBase(
   lastCount: { quantity: number; countedOn: LocalDate } | null,

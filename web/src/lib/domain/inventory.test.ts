@@ -5,6 +5,7 @@ import {
   formatMoney,
   formatQuantity,
   isLow,
+  levelsFromOrder,
   onHand,
   parseMoney,
   parseQuantity,
@@ -70,6 +71,13 @@ describe("countDue", () => {
     // Saturday 11:30 PM in New York is already Sunday in UTC.
     const saturdayNight = new Date("2026-11-15T04:30:00Z");
     expect(countDue({ now: saturdayNight, weekday: SUNDAY, timeZone: tz, lastFinishedAt: new Date("2026-11-08T15:00:00Z") })).toBe(false);
+  });
+});
+
+describe("levels from an order", () => {
+  it("reorders at 1 and orders back up to what was ordered, always above the reorder point", () => {
+    expect(levelsFromOrder(12)).toEqual({ reorderAt: 1, orderUpTo: 12 });
+    expect(levelsFromOrder(1)).toEqual({ reorderAt: 1, orderUpTo: 2 });
   });
 });
 

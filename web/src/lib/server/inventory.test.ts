@@ -249,11 +249,13 @@ describe("deliveries", () => {
     expect((await stockOf(itemId)).onHand).toBe(7);
   });
 
-  it("leaves never-counted items unknown", async () => {
+  it("counts everything delivered for a never-counted item, and leaves it unknown until something arrives", async () => {
     const sysco = await addSupplier(db, { name: "Sysco", contact: "", notes: "" });
     const itemId = await addItem(db, item());
+    expect(await stockOf(itemId)).toMatchObject({ onHand: null, low: false, value: null });
     await recordDelivery(db, input(sysco, itemId), who);
-    expect(await stockOf(itemId)).toMatchObject({ onHand: null, low: false, unitCost: 21, value: null });
+    await recordDelivery(db, input(sysco, itemId, { receivedOn: "2026-11-10" }), who);
+    expect(await stockOf(itemId)).toMatchObject({ onHand: 8, low: false, unitCost: 21, value: 168 });
   });
 
   it("checks the form and refuses a repeated invoice number", async () => {
@@ -287,7 +289,7 @@ describe("deliveries", () => {
       spotId: backRoom,
       startingQuantity: 3,
       startingOn: "2026-11-16",
-      reorderAt: 0,
+      reorderAt: 1,
       orderUpTo: 3,
     });
     expect((await getDelivery(db, id))!.lines.map((l) => l.name).sort()).toEqual(["DRINK MIX BLUEBERRY 4.4OZ", "Vanilla protein"]);

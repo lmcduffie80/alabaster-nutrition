@@ -6,6 +6,7 @@ import {
   countDue,
   isLow,
   itemTypes,
+  levelsFromOrder,
   onHand,
   parseMoney,
   parseQuantity,
@@ -595,8 +596,8 @@ async function addDeliveredItems(db: Db, header: { supplierId: string; receivedO
         supplierId: header.supplierId,
         supplierCode: line.invoiceCode ?? "",
         packSize: "1",
-        reorderAt: "0",
-        orderUpTo: String(line.quantity),
+        reorderAt: String(levelsFromOrder(line.quantity).reorderAt),
+        orderUpTo: String(levelsFromOrder(line.quantity).orderUpTo),
         defaultUnitCost: "",
       });
       await db.update(inventoryItem).set({ startingQuantity: line.quantity, startingOn: header.receivedOn }).where(eq(inventoryItem.id, id));
@@ -906,11 +907,14 @@ export async function stockRows(db: Db): Promise<StockRow[]> {
   for (const line of lines) {
     const cost = unitCost(line.lineTotal, line.quantity);
     if (cost !== null) latestCost.set(line.itemId, cost);
-    if (bases.get(line.itemId)?.adds(line)) received.set(line.itemId, (received.get(line.itemId) ?? 0) + line.quantity);
+    const base = bases.get(line.itemId);
+    if (!base || base.adds(line)) received.set(line.itemId, (received.get(line.itemId) ?? 0) + line.quantity);
   }
   return items.map((item) => {
     const last = counts.get(item.id);
-    const quantity = onHand(bases.get(item.id)?.quantity ?? null, received.get(item.id));
+    const base = bases.get(item.id);
+    const delivered = received.get(item.id);
+    const quantity = base ? onHand(base.quantity, delivered) : delivered === undefined ? null : onHand(0, delivered);
     const cost = latestCost.get(item.id) ?? item.defaultUnitCost;
     return {
       ...item,
