@@ -3,6 +3,7 @@ import { Wordmark } from "@/components/ui";
 
 const tabs = [
   { href: "/platform", label: "Dashboard" },
+  { href: "/platform/revenue", label: "Revenue" },
   { href: "/platform/invites", label: "Invites" },
 ] as const;
 
