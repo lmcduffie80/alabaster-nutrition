@@ -168,10 +168,16 @@ export function formatQuantity(value: number | null, unit?: string) {
   return unit ? `${text} ${plural(unit, value)}` : text;
 }
 
+/** Units that read the same for any amount: "3 each", "2 oz". */
+const SAME_PLURAL = new Set(["each", "ea", "oz", "lb", "lbs", "g", "kg", "ml", "l", "ct", "pcs", "pc"]);
+
 /** "tub" → "tubs"; units with a description ("sleeve of 50 cups") pluralize their first word. */
 export function plural(unit: string, value: number) {
   if (value === 1) return unit;
   const [first, ...rest] = unit.split(" ");
-  const pluralFirst = /(s|x|ch|sh)$/i.test(first) ? `${first}es` : /[^aeiou]y$/i.test(first) ? `${first.slice(0, -1)}ies` : `${first}s`;
+  if (SAME_PLURAL.has(first.toLowerCase())) return unit;
+  const ending = /(s|x|ch|sh)$/i.test(first) ? "es" : /[^aeiou]y$/i.test(first) ? "ies" : "s";
+  const stem = ending === "ies" ? first.slice(0, -1) : first;
+  const pluralFirst = `${stem}${first === first.toUpperCase() && /[A-Z]/.test(first) ? ending.toUpperCase() : ending}`;
   return [pluralFirst, ...rest].join(" ");
 }

@@ -101,6 +101,10 @@ describe("stock levels", () => {
     expect(formatQuantity(2.5, "tub")).toBe("2.5 tubs");
     expect(formatQuantity(3, "sleeve of 50 cups")).toBe("3 sleeves of 50 cups");
     expect(formatQuantity(2, "box")).toBe("2 boxes");
+    expect(formatQuantity(0, "each")).toBe("0 each");
+    expect(formatQuantity(3, "EA")).toBe("3 EA");
+    expect(formatQuantity(2, "BAG")).toBe("2 BAGS");
+    expect(formatQuantity(4, "oz")).toBe("4 oz");
     expect(formatQuantity(null, "tub")).toBe("—");
   });
 
