@@ -3,7 +3,8 @@
 import { startTransition, useActionState, useState } from "react";
 import { Button, Card, FormMessage, inputClass } from "@/components/ui";
 import { formatQuantity } from "@/lib/domain/inventory";
-import { saveCountAction } from "../../../inventory-actions";
+
+type SheetState = { error?: string; success?: string } | null;
 
 export type SheetLine = {
   itemId: string;
@@ -16,9 +17,17 @@ export type SheetLine = {
 
 const asText = (quantity: number | null) => (quantity === null ? "" : String(quantity));
 
-/** The manager's count entry. Typed numbers stay put if a save fails. */
-export function CountSheet({ countId, spots }: { countId: string; spots: { name: string; lines: SheetLine[] }[] }) {
-  const [state, formAction, pending] = useActionState(saveCountAction, null);
+/** Count entry on the web, for managers and employees. Typed numbers stay put if a save fails. */
+export function CountSheet({
+  countId,
+  spots,
+  action,
+}: {
+  countId: string;
+  spots: { name: string; lines: SheetLine[] }[];
+  action: (state: SheetState, form: FormData) => Promise<SheetState>;
+}) {
+  const [state, formAction, pending] = useActionState(action, null);
   const all = spots.flatMap((s) => s.lines);
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(all.map((l) => [l.itemId, asText(l.quantity)])),

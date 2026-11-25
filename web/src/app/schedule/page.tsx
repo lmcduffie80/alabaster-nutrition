@@ -5,17 +5,19 @@ import { LiveRefresh } from "@/components/live-refresh";
 import { Card, ColorDot, employeeColor, FramedPanel, SectionTitle, Wordmark } from "@/components/ui";
 import { addDays, formatDay, formatTime, localDateOf, startOfLocalDay, weekStartOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
+import { inventorySummary } from "@/lib/server/inventory";
 import { publishedShifts } from "@/lib/server/schedule";
 import { planFor, withMember } from "@/lib/server/session";
 import { listEmployees, viewablePins } from "@/lib/server/team";
 import { setNotifyEmailAction } from "./actions";
 import { MyPin } from "./my-pin";
 import { PhoneNotifications } from "./phone-notifications";
+import { StartCount } from "./start-count";
 
 export const metadata: Metadata = { title: "My Schedule · Metzey" };
 
 export default async function EmployeeSchedulePage() {
-  const { viewer, timeZone, today, weekStart, shifts, team, myPin } = await withMember(async (db, viewer) => {
+  const { viewer, timeZone, today, weekStart, shifts, team, myPin, inventory } = await withMember(async (db, viewer) => {
     const { timeZone } = await getBusiness(db);
     const today = localDateOf(new Date(), timeZone);
     const weekStart = weekStartOf(today);
@@ -23,7 +25,8 @@ export default async function EmployeeSchedulePage() {
     const shifts = await publishedShifts(db, { from: startOfLocalDay(today, timeZone), to: startOfLocalDay(end, timeZone) });
     const team = new Map((await listEmployees(db, { includeInactive: true })).map((e) => [e.id, e]));
     const myPin = (await viewablePins(db, [viewer.employeeId])).get(viewer.employeeId) ?? null;
-    return { viewer, timeZone, today, weekStart, shifts, team, myPin };
+    const inventory = await inventorySummary(db, new Date());
+    return { viewer, timeZone, today, weekStart, shifts, team, myPin, inventory };
   });
   const planEnded = (await planFor(viewer.businessId)).access === "ended";
   const mine = shifts.filter((s) => s.employeeId === viewer.employeeId);
@@ -67,6 +70,21 @@ export default async function EmployeeSchedulePage() {
           <p className="mt-1 font-serif text-xl font-semibold">No shifts published yet.</p>
         )}
       </FramedPanel>
+
+      {inventory.itemCount > 0 && !planEnded && (
+        <div className="mt-4">
+          {inventory.openCount ? (
+            <Link
+              href="/schedule/count"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-porcelain px-4 py-3 text-sm font-semibold text-white hover:bg-porcelain-dark"
+            >
+              Continue inventory count · {inventory.openCount.counted} of {inventory.openCount.total}
+            </Link>
+          ) : (
+            <StartCount due={inventory.countDue} />
+          )}
+        </div>
+      )}
 
       <MyPin hasPin={team.get(viewer.employeeId)?.hasPin ?? false} current={myPin} />
 

@@ -7,8 +7,8 @@ import { getBusiness } from "@/lib/server/business";
 import { countFixes, getCount } from "@/lib/server/inventory";
 import { withManager } from "@/lib/server/session";
 import { ActionForm, SubmitButton } from "../../../forms";
-import { cancelCountAction, fixCountLineAction } from "../../../inventory-actions";
-import { CountSheet } from "./count-sheet";
+import { CountSheet } from "@/components/count-sheet";
+import { cancelCountAction, fixCountLineAction, saveCountAction } from "../../../inventory-actions";
 
 export default async function CountPage({ params }: PageProps<"/manage/inventory/counts/[id]">) {
   return withManager(async (db, manager) => {
@@ -59,6 +59,7 @@ export default async function CountPage({ params }: PageProps<"/manage/inventory
         {entering && (
           <CountSheet
             countId={count.id}
+            action={saveCountAction}
             spots={spots.map((name) => ({ name, lines: count.lines.filter((l) => l.spotName === name) }))}
           />
         )}
