@@ -1,6 +1,8 @@
 import "server-only";
 import type { Db } from "@/db";
 import { addItemToCount, enterCountLines, finishCount } from "./inventory";
+import { alertLowStock } from "./low-stock";
+import { siteOrigin } from "./origin";
 
 const field = (form: FormData, name: string) => {
   const value = form.get(name);
@@ -38,5 +40,6 @@ export async function saveCountSheet(db: Db, form: FormData, employeeId: string)
     return { success: saved ? `Saved ${saved} item${saved === 1 ? "" : "s"}.` : "Nothing new to save." };
   }
   const { skipped } = await finishCount(db, { countId, employeeId, now });
+  await alertLowStock(db, { employeeId, origin: await siteOrigin() });
   return { success: skipped ? `Count finished. ${skipped} item${skipped === 1 ? " was" : "s were"} skipped.` : "Count finished." };
 }

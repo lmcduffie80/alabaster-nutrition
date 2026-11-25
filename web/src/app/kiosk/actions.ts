@@ -16,6 +16,8 @@ import {
   type CountLineView,
 } from "@/lib/server/inventory";
 import { checkKioskPin, type PinCheck } from "@/lib/server/kiosk";
+import { alertLowStock } from "@/lib/server/low-stock";
+import { siteOrigin } from "@/lib/server/origin";
 import { kioskEmployeeView, type KioskEmployeeView } from "@/lib/server/kiosk-view";
 import { recordKioskPunch } from "@/lib/server/punches";
 import {
@@ -214,9 +216,12 @@ export async function finishCounting(input: { countId: string }): Promise<CountR
   if (!session) return { kind: "expired" };
   if (!z.uuid().safeParse(input.countId).success) return { kind: "error", message: "This count is no longer open." };
   return asCountResult(async () => {
-    const { skipped } = await withKiosk(session.kiosk, (db) =>
-      finishCount(db, { countId: input.countId, employeeId: session.employeeId, now: new Date() }),
-    );
+    const origin = await siteOrigin();
+    const { skipped } = await withKiosk(session.kiosk, async (db) => {
+      const result = await finishCount(db, { countId: input.countId, employeeId: session.employeeId, now: new Date() });
+      await alertLowStock(db, { employeeId: session.employeeId, origin });
+      return result;
+    });
     await endCountSession();
     return { kind: "finished", skipped };
   });
