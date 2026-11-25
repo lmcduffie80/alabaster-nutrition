@@ -8,6 +8,7 @@ import {
   addSpot,
   addSupplier,
   cancelCount,
+  addItemToCount,
   enterCountLine,
   enterCountLines,
   finishCount,
@@ -144,6 +145,32 @@ describe("counting", () => {
       /isn't a number/,
     );
     expect((await getCount(db, countId))?.lines[0].quantity).toBe(3.5);
+  });
+
+  it("adds an item that wasn't on the list, matching what's on file first", async () => {
+    const herb = await addSupplier(db, { name: "Herbal Co", contact: "", notes: "" });
+    await addItem(db, item({ supplierId: herb, supplierCode: "V-100" }));
+    const berry = await addItem(db, item({ name: "Berry tea", spotId: fridge }));
+    await setItemActive(db, berry, false);
+    const countId = await startOrContinueCount(db, { employeeId: ava, now: sunday });
+    const add = (fields: { code?: string; name?: string; quantity?: string }) =>
+      addItemToCount(db, { countId, code: "", name: "", unit: "", quantity: "2", employeeId: ava, now: sunday, ...fields });
+
+    await rejects(add({ code: "v-100" }), /Vanilla protein is already on this count/);
+    expect(await add({ name: "berry TEA", quantity: "3" })).toEqual({ name: "Berry tea", added: false });
+    await rejects(add({ code: "NEW-1" }), /Add a description/);
+    await rejects(add({ name: "Mango tea", quantity: "" }), /how many/);
+    expect(await add({ code: "NEW-1", name: "Mango  tea", quantity: "4" })).toEqual({ name: "Mango tea", added: true });
+
+    const view = await getCount(db, countId);
+    expect(view?.lines.map((l) => [l.name, l.quantity, l.enteredBy]).sort()).toEqual([
+      ["Berry tea", 3, "Ava"],
+      ["Mango tea", 4, "Ava"],
+      ["Vanilla protein", null, null],
+    ]);
+    const mango = (await listItems(db)).find((i) => i.name === "Mango tea");
+    expect(mango).toMatchObject({ supplierId: herb, supplierCode: "NEW-1", unit: "each", reorderAt: 1, orderUpTo: 4, active: true });
+    expect((await listItems(db)).find((i) => i.id === berry)?.active).toBe(true);
   });
 
   it("reports skipped items, then locks the count", async () => {

@@ -26,7 +26,7 @@ import { z } from "zod";
 import { UserError } from "@/lib/server/errors";
 import { attachPhotos, MAX_SCAN_PAGES } from "@/lib/server/invoice-scan";
 import { keepPhotos } from "@/lib/server/photo-store";
-import { saveCountSheet } from "@/lib/server/count-sheet";
+import { addCountSheetItem, saveCountSheet } from "@/lib/server/count-sheet";
 import type { Manager } from "@/lib/server/session";
 import { managerForm, text, type FormState } from "./manager-form";
 
@@ -168,6 +168,10 @@ export async function startCountAction(_: FormState, form: FormData) {
 
 export async function saveCountAction(_: FormState, form: FormData) {
   return managerForm(form, (manager, db) => saveCountSheet(db, form, countingEmployee(manager)), { paths });
+}
+
+export async function addCountItemAction(_: FormState, form: FormData) {
+  return managerForm(form, (manager, db) => addCountSheetItem(db, form, countingEmployee(manager)), { paths });
 }
 
 export async function cancelCountAction(_: FormState, form: FormData) {

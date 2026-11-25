@@ -4,7 +4,7 @@ import { CountSheet } from "@/components/count-sheet";
 import { Card, Wordmark } from "@/components/ui";
 import { getCount, openCountId } from "@/lib/server/inventory";
 import { withMember } from "@/lib/server/session";
-import { saveMyCountAction } from "../actions";
+import { addMyCountItemAction, saveMyCountAction } from "../actions";
 import { StartCount } from "../start-count";
 
 export const metadata: Metadata = { title: "Inventory count · Metzey" };
@@ -36,6 +36,7 @@ export default async function MyCountPage({ searchParams }: PageProps<"/schedule
           <CountSheet
             countId={count.id}
             action={saveMyCountAction}
+            addAction={addMyCountItemAction}
             spots={spots.map((name) => ({ name, lines: count.lines.filter((l) => l.spotName === name) }))}
           />
         </>

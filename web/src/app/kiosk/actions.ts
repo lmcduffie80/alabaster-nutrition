@@ -8,6 +8,7 @@ import { formatTime } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
 import { UserError } from "@/lib/server/errors";
 import {
+  addItemToCount,
   enterCountLine,
   finishCount,
   getCount,
@@ -110,6 +111,7 @@ export type CountScreenView = {
 export type CountResult =
   | { kind: "counting"; view: CountScreenView }
   | { kind: "saved"; quantity: number | null }
+  | { kind: "added"; view: CountScreenView; message: string }
   | { kind: "finished"; skipped: number }
   | { kind: "expired" }
   | { kind: "error"; message: string }
@@ -177,6 +179,33 @@ export async function enterCount(input: { countId: string; itemId: string; quant
     await withKiosk(session.kiosk, (db) => enterCountLine(db, { ...parsed.data, quantity, employeeId: session.employeeId, now }));
     await startCountSession(session.kiosk.id, session.employeeId, now);
     return { kind: "saved", quantity };
+  });
+}
+
+const newItemSchema = z.object({
+  countId: z.uuid(),
+  code: z.string().max(40),
+  name: z.string().max(80),
+  unit: z.string().max(40),
+  quantity: z.string().max(20),
+});
+
+export async function addCountItem(input: z.input<typeof newItemSchema>): Promise<CountResult> {
+  const session = await getCountSession();
+  if (!session) return { kind: "expired" };
+  const parsed = newItemSchema.safeParse(input);
+  if (!parsed.success) return { kind: "error", message: "Something went wrong. Try again." };
+  return asCountResult(async () => {
+    const now = new Date();
+    return withKiosk(session.kiosk, async (db) => {
+      const { name, added } = await addItemToCount(db, { ...parsed.data, employeeId: session.employeeId, now });
+      await startCountSession(session.kiosk.id, session.employeeId, now);
+      return {
+        kind: "added",
+        view: await countScreenView(db, parsed.data.countId),
+        message: added ? `${name} added as a new item.` : `${name} added to this count.`,
+      };
+    });
   });
 }
 
