@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { schema, type Db } from "@/db";
-import { saveCountSheet } from "@/lib/server/count-sheet";
+import { addCountSheetItem, saveCountSheet } from "@/lib/server/count-sheet";
 import { UserError } from "@/lib/server/errors";
 import { startOrContinueCount } from "@/lib/server/inventory";
 import { PLAN_INACTIVE_KIOSK, planFor, withMember } from "@/lib/server/session";
@@ -49,6 +49,10 @@ export async function saveMyCountAction(_: CountState, form: FormData): Promise<
   const result = await asMemberCounting((db, employeeId) => saveCountSheet(db, form, employeeId));
   if (result?.error || form.get("intent") !== "finish") return result;
   redirect("/schedule/count?finished=1");
+}
+
+export async function addMyCountItemAction(_: CountState, form: FormData): Promise<CountState> {
+  return asMemberCounting((db, employeeId) => addCountSheetItem(db, form, employeeId));
 }
 
 export type MyPinState = { pin?: string; error?: string; at?: number } | null;

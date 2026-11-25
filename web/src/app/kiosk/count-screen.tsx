@@ -1,10 +1,10 @@
 "use client";
 
 import { Check, CloudOff, Loader2, Minus, Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Button, Card, FramedPanel } from "@/components/ui";
 import { formatQuantity, parseQuantity, round2 } from "@/lib/domain/inventory";
-import { enterCount, finishCounting, type CountScreenView } from "./actions";
+import { addCountItem, enterCount, finishCounting, type CountScreenView } from "./actions";
 
 type LineState = { value: string; saved: number | null; status: "idle" | "saving" | "saved" | "error"; message?: string };
 
@@ -29,6 +29,8 @@ export function CountScreen({
     Object.fromEntries(view.lines.map((l) => [l.itemId, { value: display(l.quantity), saved: l.quantity, status: "idle" }])),
   );
   const [lines, setLines] = useState(initial);
+  /** Grows when someone adds an item that wasn't on the list. */
+  const [sheet, setSheet] = useState(view);
   const [confirmSkip, setConfirmSkip] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +84,7 @@ export function CountScreen({
   }
 
   const counted = Object.values(lines).filter((l) => l.saved !== null).length;
-  const blanks = view.lines.length - counted;
+  const blanks = sheet.lines.length - counted;
   const unsaved = Object.values(lines).some((l) => l.status === "saving" || l.status === "error");
 
   async function finish() {
@@ -105,7 +107,16 @@ export function CountScreen({
     }
   }
 
-  const spots = [...new Set(view.lines.map((l) => l.spotName))];
+  function added(next: CountScreenView) {
+    for (const line of next.lines) {
+      if (latest.current[line.itemId]) continue;
+      latest.current = { ...latest.current, [line.itemId]: { value: display(line.quantity), saved: line.quantity, status: "saved" } };
+    }
+    setLines(latest.current);
+    setSheet(next);
+  }
+
+  const spots = [...new Set(sheet.lines.map((l) => l.spotName))];
 
   return (
     <div className="flex h-full flex-col">
@@ -113,7 +124,7 @@ export function CountScreen({
         <div>
           <p className="font-serif text-3xl font-semibold">Inventory count</p>
           <p className="text-sm text-ink/60" aria-live="polite">
-            {counted} of {view.lines.length} counted
+            {counted} of {sheet.lines.length} counted
           </p>
         </div>
         <Button variant="quiet" onClick={onLeave}>
@@ -126,7 +137,7 @@ export function CountScreen({
           <section key={spot} className="mb-6">
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink/50">{spot}</h2>
             <Card className="divide-y divide-ink/5 p-0">
-              {view.lines
+              {sheet.lines
                 .filter((l) => l.spotName === spot)
                 .map((line) => {
                   const state = lines[line.itemId];
@@ -190,6 +201,7 @@ export function CountScreen({
             </Card>
           </section>
         ))}
+        <AddItem countId={view.countId} onAdded={added} onExpired={onExpired} />
       </div>
 
       <footer className="border-t border-ink/10 bg-white/80 px-8 py-4">
@@ -219,5 +231,98 @@ export function CountScreen({
         )}
       </footer>
     </div>
+  );
+}
+
+const blankItem = { code: "", name: "", unit: "", quantity: "" };
+
+/** For something on the shelf that isn't on the list. */
+function AddItem({
+  countId,
+  onAdded,
+  onExpired,
+}: {
+  countId: string;
+  onAdded: (view: CountScreenView) => void;
+  onExpired: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [item, setItem] = useState(blankItem);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ error?: string; success?: string } | null>(null);
+  const field = (key: keyof typeof blankItem) => ({
+    value: item[key],
+    onChange: (e: ChangeEvent<HTMLInputElement>) => setItem((i) => ({ ...i, [key]: e.target.value })),
+    autoComplete: "off",
+    className: "w-full rounded-xl border border-ink/15 px-3 py-3 text-lg outline-none focus:ring-2 focus:ring-porcelain/20",
+  });
+
+  async function submit() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await addCountItem({ countId, ...item });
+      if (result.kind === "expired") return onExpired();
+      if (result.kind === "added") {
+        onAdded(result.view);
+        setItem(blankItem);
+        setMessage({ success: result.message });
+        setOpen(false);
+        return;
+      }
+      setMessage({ error: result.kind === "error" ? result.message : "Couldn’t add it. Try again." });
+    } catch {
+      setMessage({ error: "No connection — it wasn’t added. Check the Wi-Fi and try again." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <div className="mb-6">
+        <Button variant="secondary" className="w-full py-3" onClick={() => setOpen(true)}>
+          <Plus className="size-5" /> Item not on the list?
+        </Button>
+        {message?.success && <p className="mt-2 text-sm font-medium text-[#4d6340]">{message.success}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <Card className="mb-6 space-y-3">
+      <p className="font-medium">Add an item that isn&rsquo;t on the list</p>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-sm text-ink/70">
+          Item number
+          <input {...field("code")} placeholder="SKU, if it has one" />
+        </label>
+        <label className="text-sm text-ink/70">
+          How many
+          <input {...field("quantity")} inputMode="decimal" />
+        </label>
+        <label className="col-span-2 text-sm text-ink/70">
+          Description
+          <input {...field("name")} placeholder="What it’s called" />
+        </label>
+        <label className="text-sm text-ink/70">
+          Unit
+          <input {...field("unit")} placeholder="each" />
+        </label>
+      </div>
+      {message?.error && (
+        <p role="alert" className="text-sm font-medium text-red-700">
+          {message.error}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <Button variant="secondary" onClick={() => setOpen(false)} disabled={busy}>
+          Cancel
+        </Button>
+        <Button className="flex-1" onClick={() => void submit()} disabled={busy}>
+          Add to count
+        </Button>
+      </div>
+    </Card>
   );
 }

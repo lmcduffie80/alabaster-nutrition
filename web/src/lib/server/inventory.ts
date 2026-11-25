@@ -428,6 +428,86 @@ export async function enterCountLines(
   return changed.length;
 }
 
+/**
+ * Something on the shelf that isn't on the count. An existing item with that number or name joins the
+ * count (reactivated if it was deactivated); otherwise a new item is set up like one from a delivery,
+ * under the supplier most items come from. Item numbers belong to a supplier, so with none on file the
+ * number is left off.
+ */
+export async function addItemToCount(
+  db: Db,
+  input: { countId: string; code: string; name: string; unit: string; quantity: string; employeeId: string; now: Date },
+) {
+  await requireOpen(db, input.countId);
+  const code = input.code.trim().slice(0, 40);
+  const name = input.name.trim().replace(/\s+/g, " ").slice(0, 80);
+  if (!name && !code) throw new UserError("Enter the item number or a description.");
+  let quantity: number | null;
+  try {
+    quantity = parseQuantity(input.quantity);
+  } catch {
+    throw new UserError("Enter how many you counted, like 3 or 2.5.");
+  }
+  if (quantity === null) throw new UserError("Enter how many you counted.");
+
+  const [existing] = await db
+    .select({ id: inventoryItem.id, name: inventoryItem.name, active: inventoryItem.active })
+    .from(inventoryItem)
+    .where(
+      code && name
+        ? sql`lower(${inventoryItem.supplierCode}) = lower(${code}) or lower(${inventoryItem.name}) = lower(${name})`
+        : code
+          ? sql`lower(${inventoryItem.supplierCode}) = lower(${code})`
+          : sql`lower(${inventoryItem.name}) = lower(${name})`,
+    )
+    .orderBy(desc(inventoryItem.active))
+    .limit(1);
+
+  return db.transaction(async (tx) => {
+    let itemId = existing?.id;
+    if (existing) {
+      const [line] = await tx
+        .select({ itemId: inventoryCountLine.itemId })
+        .from(inventoryCountLine)
+        .where(and(eq(inventoryCountLine.countId, input.countId), eq(inventoryCountLine.itemId, existing.id)));
+      if (line) throw new UserError(`${existing.name} is already on this count. Enter it there.`);
+      if (!existing.active) await tx.update(inventoryItem).set({ active: true }).where(eq(inventoryItem.id, existing.id));
+    } else {
+      if (!name) throw new UserError("That item number isn't on file. Add a description too.");
+      const [spot] = await tx.select({ id: storageSpot.id }).from(storageSpot).orderBy(asc(storageSpot.sortOrder)).limit(1);
+      if (!spot) throw new UserError("Add a storage spot under Inventory > Spots before adding new items.");
+      const [usual] = await tx
+        .select({ supplierId: inventoryItem.supplierId })
+        .from(inventoryItem)
+        .where(and(eq(inventoryItem.active, true), isNotNull(inventoryItem.supplierId)))
+        .groupBy(inventoryItem.supplierId)
+        .orderBy(desc(countRows()))
+        .limit(1);
+      const levels = levelsFromOrder(quantity);
+      itemId = await addItem(tx, {
+        name,
+        type: "ingredient",
+        unit: input.unit.trim().slice(0, 40) || "each",
+        spotId: spot.id,
+        supplierId: usual?.supplierId ?? "",
+        supplierCode: usual?.supplierId ? code : "",
+        packSize: "1",
+        reorderAt: String(levels.reorderAt),
+        orderUpTo: String(levels.orderUpTo),
+        defaultUnitCost: "",
+      });
+    }
+    await tx.insert(inventoryCountLine).values({
+      countId: input.countId,
+      itemId: itemId!,
+      quantity,
+      enteredBy: input.employeeId,
+      enteredAt: input.now,
+    });
+    return { name: existing?.name ?? name, added: !existing };
+  });
+}
+
 export async function finishCount(db: Db, input: { countId: string; employeeId: string; now: Date }) {
   await requireOpen(db, input.countId);
   const lines = await db

@@ -1,11 +1,24 @@
 import "server-only";
 import type { Db } from "@/db";
-import { enterCountLines, finishCount } from "./inventory";
+import { addItemToCount, enterCountLines, finishCount } from "./inventory";
 
 const field = (form: FormData, name: string) => {
   const value = form.get(name);
   return typeof value === "string" ? value : "";
 };
+
+export async function addCountSheetItem(db: Db, form: FormData, employeeId: string) {
+  const { name, added } = await addItemToCount(db, {
+    countId: field(form, "countId"),
+    code: field(form, "code"),
+    name: field(form, "name"),
+    unit: field(form, "unit"),
+    quantity: field(form, "quantity"),
+    employeeId,
+    now: new Date(),
+  });
+  return { success: added ? `${name} added as a new item and counted.` : `${name} added to this count.` };
+}
 
 /**
  * Saves the count sheet, and finishes the count when its "Save and finish" button sent it.
