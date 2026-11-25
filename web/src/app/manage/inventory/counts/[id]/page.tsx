@@ -8,15 +8,17 @@ import { countFixes, getCount } from "@/lib/server/inventory";
 import { withManager } from "@/lib/server/session";
 import { ActionForm, SubmitButton } from "../../../forms";
 import { cancelCountAction, fixCountLineAction } from "../../../inventory-actions";
+import { CountSheet } from "./count-sheet";
 
 export default async function CountPage({ params }: PageProps<"/manage/inventory/counts/[id]">) {
-  return withManager(async (db) => {
+  return withManager(async (db, manager) => {
     const { id } = await params;
     const [count, fixes, { timeZone }] = await Promise.all([getCount(db, id), countFixes(db, id), getBusiness(db)]);
     if (!count) notFound();
     const when = (at: Date) => `${formatDay(localDateOf(at, timeZone))} at ${formatTime(at, timeZone)}`;
     const spots = [...new Set(count.lines.map((l) => l.spotName))];
     const finished = count.status === "finished";
+    const entering = count.status === "open" && Boolean(manager.employeeId);
     const lineOf = new Map(count.lines.map((l) => [l.itemId, l]));
     const shown = (quantity: number | null, unit: string) => (quantity === null ? "not counted" : formatQuantity(quantity, unit));
 
@@ -44,8 +46,24 @@ export default async function CountPage({ params }: PageProps<"/manage/inventory
           {count.status === "cancelled" && <Badge>Cancelled</Badge>}
         </div>
         {finished && <p className="mt-2 text-sm text-ink/60">Spot a wrong number? Use Fix next to the item. Stock and usage update right away.</p>}
+        {entering && (
+          <p className="mt-2 text-sm text-ink/60">
+            Type what&rsquo;s on the shelf for each item. Leave it blank if you didn&rsquo;t count it. Press Save as you go;
+            employees can keep counting on the iPad at the same time.
+          </p>
+        )}
+        {count.status === "open" && !manager.employeeId && (
+          <p className="mt-2 text-sm text-ink/60">Sign in with your manager account to type counts here, or count on the iPad.</p>
+        )}
 
-        {spots.map((spot) => (
+        {entering && (
+          <CountSheet
+            countId={count.id}
+            spots={spots.map((name) => ({ name, lines: count.lines.filter((l) => l.spotName === name) }))}
+          />
+        )}
+
+        {!entering && spots.map((spot) => (
           <section key={spot} className="mt-5">
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink/50">{spot}</h2>
             <Card className="divide-y divide-ink/5 p-0">

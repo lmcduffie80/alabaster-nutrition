@@ -386,6 +386,48 @@ export async function enterCountLine(
   if (updated.length === 0) throw new UserError("That item isn't on this count.");
 }
 
+/**
+ * Several lines at once, from the manager's count page. Only lines whose number changed since the page
+ * loaded are written, so someone counting on the iPad at the same time isn't overwritten.
+ */
+export async function enterCountLines(
+  db: Db,
+  input: {
+    countId: string;
+    lines: { itemId: string; quantity: string; previous: string }[];
+    employeeId: string;
+    now: Date;
+  },
+) {
+  await requireOpen(db, input.countId);
+  const changed: { itemId: string; quantity: number | null }[] = [];
+  for (const line of input.lines) {
+    if (line.quantity.trim() === line.previous.trim()) continue;
+    if (!isId(line.itemId)) throw new UserError("That item isn't on this count.");
+    try {
+      changed.push({ itemId: line.itemId, quantity: parseQuantity(line.quantity) });
+    } catch {
+      throw new UserError(`“${line.quantity.trim()}” isn't a number. Enter something like 3 or 2.5, or leave it blank.`);
+    }
+  }
+  if (changed.length === 0) return 0;
+  await db.transaction(async (tx) => {
+    for (const line of changed) {
+      const updated = await tx
+        .update(inventoryCountLine)
+        .set({
+          quantity: line.quantity,
+          enteredBy: line.quantity === null ? null : input.employeeId,
+          enteredAt: line.quantity === null ? null : input.now,
+        })
+        .where(and(eq(inventoryCountLine.countId, input.countId), eq(inventoryCountLine.itemId, line.itemId)))
+        .returning({ itemId: inventoryCountLine.itemId });
+      if (updated.length === 0) throw new UserError("That item isn't on this count. Refresh the page.");
+    }
+  });
+  return changed.length;
+}
+
 export async function finishCount(db: Db, input: { countId: string; employeeId: string; now: Date }) {
   await requireOpen(db, input.countId);
   const lines = await db

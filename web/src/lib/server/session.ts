@@ -169,12 +169,16 @@ export type Manager = {
   actor: string;
   via: "account" | "kiosk";
   businessId: number;
+  /** The manager's own team member, when signed in with their account. */
+  employeeId?: string;
 };
 
 /** The manager, signed in with their account or unlocked with the manager PIN on the store kiosk. */
 export async function getManager(): Promise<Manager | null> {
   const viewer = await getViewer();
-  if (viewer?.kind === "manager") return { actor: viewer.email, via: "account", businessId: viewer.businessId };
+  if (viewer?.kind === "manager") {
+    return { actor: viewer.email, via: "account", businessId: viewer.businessId, employeeId: viewer.employeeId };
+  }
 
   const ticket = verify<KioskManagerTicket>((await cookies()).get(KIOSK_MANAGER_COOKIE)?.value);
   if (!ticket || ticket.exp < Date.now()) return null;
