@@ -6,7 +6,10 @@ import {
   addSupplier,
   cancelCount,
   createItemsFromReceipt,
+  enterCountLines,
+  finishCount,
   fixCountLine,
+  startOrContinueCount,
   moveSpot,
   removeSpot,
   renameSpot,
@@ -25,6 +28,7 @@ import { z } from "zod";
 import { UserError } from "@/lib/server/errors";
 import { attachPhotos, MAX_SCAN_PAGES } from "@/lib/server/invoice-scan";
 import { keepPhotos } from "@/lib/server/photo-store";
+import type { Manager } from "@/lib/server/session";
 import { managerForm, text, type FormState } from "./manager-form";
 
 const paths = ["/manage", "/kiosk"];
@@ -148,6 +152,41 @@ export async function setItemActiveAction(_: FormState, form: FormData) {
 }
 
 // Counts
+
+function countingEmployee(manager: Manager) {
+  if (!manager.employeeId) throw new UserError("Sign in with your manager account to count here, or count on the iPad.");
+  return manager.employeeId;
+}
+
+export async function startCountAction(_: FormState, form: FormData) {
+  let id = "";
+  const result = await managerForm(form, async (manager, db) => {
+    id = await startOrContinueCount(db, { employeeId: countingEmployee(manager), now: new Date() });
+  }, { paths });
+  if (result?.error) return result;
+  redirect(`/manage/inventory/counts/${id}`);
+}
+
+/** Fields come as `q:<itemId>` (what was typed) and `p:<itemId>` (what the page showed). */
+export async function saveCountAction(_: FormState, form: FormData) {
+  return managerForm(form, async (manager, db) => {
+    const employeeId = countingEmployee(manager);
+    const countId = text(form, "countId");
+    const lines = [...form.keys()]
+      .filter((key) => key.startsWith("q:"))
+      .map((key) => {
+        const itemId = key.slice(2);
+        return { itemId, quantity: text(form, key), previous: text(form, `p:${itemId}`) };
+      });
+    const now = new Date();
+    const saved = await enterCountLines(db, { countId, lines, employeeId, now });
+    if (text(form, "intent") !== "finish") {
+      return { success: saved ? `Saved ${saved} item${saved === 1 ? "" : "s"}.` : "Nothing new to save." };
+    }
+    const { skipped } = await finishCount(db, { countId, employeeId, now });
+    return { success: skipped ? `Count finished. ${skipped} item${skipped === 1 ? " was" : "s were"} skipped.` : "Count finished." };
+  }, { paths });
+}
 
 export async function cancelCountAction(_: FormState, form: FormData) {
   return managerForm(form, async (_m, db) => {

@@ -9,6 +9,7 @@ import {
   addSupplier,
   cancelCount,
   enterCountLine,
+  enterCountLines,
   finishCount,
   getCount,
   inventorySummary,
@@ -114,6 +115,35 @@ describe("counting", () => {
       ["Berry tea", 2, "Jordan"],
     ]);
     expect(view).toMatchObject({ counted: 2, total: 2, status: "open", startedBy: "Ava" });
+  });
+
+  it("saves a manager's sheet without overwriting lines counted on the iPad meanwhile", async () => {
+    const vanilla = await addItem(db, item());
+    const berry = await addItem(db, item({ name: "Berry tea", spotId: fridge }));
+    const countId = await startOrContinueCount(db, { employeeId: ava, now: sunday });
+    await enterCountLine(db, { countId, itemId: berry, quantity: 2, employeeId: jordan, now: sunday });
+
+    const saved = await enterCountLines(db, {
+      countId,
+      lines: [
+        { itemId: vanilla, quantity: "3.5", previous: "" },
+        { itemId: berry, quantity: "", previous: "" },
+      ],
+      employeeId: ava,
+      now: sunday,
+    });
+    expect(saved).toBe(1);
+    const view = await getCount(db, countId);
+    expect(view?.lines.map((l) => [l.name, l.quantity, l.enteredBy])).toEqual([
+      ["Vanilla protein", 3.5, "Ava"],
+      ["Berry tea", 2, "Jordan"],
+    ]);
+
+    await rejects(
+      enterCountLines(db, { countId, lines: [{ itemId: vanilla, quantity: "lots", previous: "3.5" }], employeeId: ava, now: sunday }),
+      /isn't a number/,
+    );
+    expect((await getCount(db, countId))?.lines[0].quantity).toBe(3.5);
   });
 
   it("reports skipped items, then locks the count", async () => {
