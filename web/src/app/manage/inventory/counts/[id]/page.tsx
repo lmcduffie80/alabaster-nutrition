@@ -44,6 +44,11 @@ export default async function CountPage({ params }: PageProps<"/manage/inventory
             </ActionForm>
           )}
           {count.status === "cancelled" && <Badge>Cancelled</Badge>}
+          {count.status !== "cancelled" && (
+            <a href={`/manage/inventory/reports/export?report=count&count=${count.id}`} className="text-sm font-semibold text-porcelain hover:underline">
+              Download CSV
+            </a>
+          )}
         </div>
         {finished && <p className="mt-2 text-sm text-ink/60">Spot a wrong number? Use Fix next to the item. Stock and usage update right away.</p>}
         {entering && (

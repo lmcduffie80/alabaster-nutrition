@@ -15,7 +15,7 @@ import {
   startOrContinueCount,
   stockRows,
 } from "./inventory";
-import { spendingCsv, spendingReport, stockCsv, usageCsv, usageReport } from "./inventory-reports";
+import { countCsv, spendingCsv, spendingReport, stockCsv, usageCsv, usageReport } from "./inventory-reports";
 import { addEmployee } from "./team";
 
 let db: Db;
@@ -128,6 +128,18 @@ describe("spending and stock", () => {
       ["2026-10-01", 5],
     ]);
     expect(spendingCsv(months, "month").split("\r\n").slice(0, 2)).toEqual(["Month,Supplier,Deliveries,Total", "2026-11,Sysco,3,81.5"]);
+  });
+
+  it("exports a count with what to reorder and what it costs", async () => {
+    const countId = await count(sunday, [[vanilla, 1], [lids, 3]]);
+    const sheet = await countCsv(db, countId);
+    expect(sheet?.countedOn).toBe("2026-11-15");
+    expect(sheet?.body.split("\r\n").slice(1, 4)).toEqual([
+      "Back room,Lids,Supply,,,sleeve,3,1,5,,,",
+      "Back room,Vanilla protein,Ingredient,Sysco,,tub,1,1,5,4,18,72",
+      ",Total order cost,,,,,,,,,,72",
+    ]);
+    expect(await countCsv(db, "not-a-count")).toBeNull();
   });
 
   it("exports stock with value", async () => {

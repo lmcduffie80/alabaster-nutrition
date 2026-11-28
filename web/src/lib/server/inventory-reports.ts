@@ -3,8 +3,10 @@ import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { schema, type Db } from "@/db";
 import { toCsv } from "@/lib/domain/csv";
 import {
+  isLow,
   itemTypeLabel,
   itemTypes,
+  reorderAmount,
   round2,
   usageFlag,
   usagePeriods,
@@ -13,7 +15,7 @@ import {
 } from "@/lib/domain/inventory";
 import { addDays, localDateOf, weekStartOf, type LocalDate } from "@/lib/domain/time";
 import { getBusiness } from "./business";
-import { liveDeliveryLines, listItems, startingStock, stockRows } from "./inventory";
+import { getCount, liveDeliveryLines, listItems, startingStock, stockRows } from "./inventory";
 
 const { inventoryCount, inventoryCountLine, delivery, deliveryLine, supplier } = schema;
 
@@ -170,6 +172,49 @@ export function spendingCsv(buckets: SpendingBucket[], by: SpendingBy) {
     [by === "week" ? "Week of" : "Month", "Supplier", "Deliveries", "Total"],
     ...buckets.flatMap((b) => b.suppliers.map((s) => [by === "week" ? b.start : b.start.slice(0, 7), s.name, s.deliveries, s.total])),
   ]);
+}
+
+// Count
+
+/**
+ * One count's sheet, with what to reorder from it and what that order costs: items at or below their reorder
+ * level are ordered back up to their "order up to" level, priced like Stock value. Null for a missing count.
+ */
+export async function countCsv(db: Db, countId: string) {
+  const [count, items, stock] = await Promise.all([getCount(db, countId), listItems(db, { includeInactive: true }), stockRows(db)]);
+  if (!count) return null;
+  const itemOf = new Map(items.map((item) => [item.id, item]));
+  const costOf = new Map(stock.map((r) => [r.id, r.unitCost]));
+  let total = 0;
+  const rows = count.lines.map((line) => {
+    const item = itemOf.get(line.itemId)!;
+    const cost = costOf.get(item.id) ?? item.defaultUnitCost;
+    const order = isLow(line.quantity, item.reorderAt) ? reorderAmount(line.quantity, item.orderUpTo) : 0;
+    const orderCost = order > 0 && cost !== null ? round2(order * cost) : null;
+    if (orderCost !== null) total = round2(total + orderCost);
+    return [
+      line.spotName,
+      line.name,
+      itemTypeLabel[item.type],
+      item.supplierName ?? "",
+      item.supplierCode ?? "",
+      line.unit,
+      line.quantity ?? "Not counted",
+      item.reorderAt,
+      item.orderUpTo,
+      order || "",
+      cost === null ? "" : round2(cost),
+      orderCost,
+    ];
+  });
+  return {
+    countedOn: localDateOf(count.finishedAt ?? count.startedAt, (await getBusiness(db)).timeZone),
+    body: toCsv([
+      ["Stored in", "Item", "Type", "Supplier", "Supplier code", "Unit", "Counted", "Reorder at", "Order up to", "Order", "Cost each", "Order cost"],
+      ...rows,
+      ["", "Total order cost", "", "", "", "", "", "", "", "", "", total],
+    ]),
+  };
 }
 
 // Stock
