@@ -178,7 +178,8 @@ export function spendingCsv(buckets: SpendingBucket[], by: SpendingBy) {
 
 /**
  * One count's sheet, with what to reorder from it and what that order costs: items at or below their reorder
- * level are ordered back up to their "order up to" level, priced like Stock value. Null for a missing count.
+ * level, unless marked "no order needed", are ordered back up to their "order up to" level, priced like Stock
+ * value. Null for a missing count.
  */
 export async function countCsv(db: Db, countId: string) {
   const [count, items, stock] = await Promise.all([getCount(db, countId), listItems(db, { includeInactive: true }), stockRows(db)]);
@@ -189,7 +190,7 @@ export async function countCsv(db: Db, countId: string) {
   const rows = count.lines.map((line) => {
     const item = itemOf.get(line.itemId)!;
     const cost = costOf.get(item.id) ?? item.defaultUnitCost;
-    const order = isLow(line.quantity, item.reorderAt) ? reorderAmount(line.quantity, item.orderUpTo) : 0;
+    const order = !line.noOrder && isLow(line.quantity, item.reorderAt) ? reorderAmount(line.quantity, item.orderUpTo) : 0;
     const orderCost = order > 0 && cost !== null ? round2(order * cost) : null;
     if (orderCost !== null) total = round2(total + orderCost);
     return [
@@ -202,6 +203,7 @@ export async function countCsv(db: Db, countId: string) {
       line.quantity ?? "Not counted",
       item.reorderAt,
       item.orderUpTo,
+      line.noOrder ? "yes" : "",
       order || "",
       cost === null ? "" : round2(cost),
       orderCost,
@@ -210,9 +212,9 @@ export async function countCsv(db: Db, countId: string) {
   return {
     countedOn: localDateOf(count.finishedAt ?? count.startedAt, (await getBusiness(db)).timeZone),
     body: toCsv([
-      ["Stored in", "Item", "Type", "Supplier", "Supplier code", "Unit", "Counted", "Reorder at", "Order up to", "Order", "Cost each", "Order cost"],
+      ["Stored in", "Item", "Type", "Supplier", "Supplier code", "Unit", "Counted", "Reorder at", "Order up to", "No order needed", "Order", "Cost each", "Order cost"],
       ...rows,
-      ["", "Total order cost", "", "", "", "", "", "", "", "", "", total],
+      ["", "Total order cost", "", "", "", "", "", "", "", "", "", "", total],
     ]),
   };
 }

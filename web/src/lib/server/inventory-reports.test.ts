@@ -12,6 +12,7 @@ import {
   finishCount,
   fixCountLine,
   recordDelivery,
+  setCountLineNoOrder,
   startOrContinueCount,
   stockRows,
 } from "./inventory";
@@ -131,13 +132,18 @@ describe("spending and stock", () => {
   });
 
   it("exports a count with what to reorder and what it costs", async () => {
-    const countId = await count(sunday, [[vanilla, 1], [lids, 3]]);
+    const countId = await startOrContinueCount(db, { employeeId: ava, now: sunday });
+    await enterCountLine(db, { countId, itemId: vanilla, quantity: 1, employeeId: ava, now: sunday });
+    await enterCountLine(db, { countId, itemId: lids, quantity: 0, employeeId: ava, now: sunday });
+    await setCountLineNoOrder(db, { countId, itemId: lids, noOrder: true });
+    await finishCount(db, { countId, employeeId: ava, now: sunday });
     const sheet = await countCsv(db, countId);
     expect(sheet?.countedOn).toBe("2026-11-15");
-    expect(sheet?.body.split("\r\n").slice(1, 4)).toEqual([
-      "Back room,Lids,Supply,,,sleeve,3,1,5,,,",
-      "Back room,Vanilla protein,Ingredient,Sysco,,tub,1,1,5,4,18,72",
-      ",Total order cost,,,,,,,,,,72",
+    expect(sheet?.body.split("\r\n").slice(0, 4)).toEqual([
+      "Stored in,Item,Type,Supplier,Supplier code,Unit,Counted,Reorder at,Order up to,No order needed,Order,Cost each,Order cost",
+      "Back room,Lids,Supply,,,sleeve,0,1,5,yes,,,",
+      "Back room,Vanilla protein,Ingredient,Sysco,,tub,1,1,5,,4,18,72",
+      ",Total order cost,,,,,,,,,,,72",
     ]);
     expect(await countCsv(db, "not-a-count")).toBeNull();
   });

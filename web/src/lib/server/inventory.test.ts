@@ -20,6 +20,7 @@ import {
   moveSpot,
   removeSpot,
   reorderList,
+  setCountLineNoOrder,
   setItemActive,
   startOrContinueCount,
   stockRows,
@@ -254,6 +255,27 @@ describe("stock and reorder", () => {
       ["Sysco", [["Vanilla protein", 8, "VP-1"]]],
       ["No supplier", [["Straws", 10, null]]],
     ]);
+  });
+
+  it("leaves items marked no order needed off the reorder list until the next count", async () => {
+    const a = await addItem(db, item());
+    const b = await addItem(db, item({ name: "Lids" }));
+    const first = await startOrContinueCount(db, { employeeId: ava, now: sunday });
+    await enterCountLine(db, { countId: first, itemId: a, quantity: 0, employeeId: ava, now: sunday });
+    await enterCountLine(db, { countId: first, itemId: b, quantity: 0, employeeId: ava, now: sunday });
+    await setCountLineNoOrder(db, { countId: first, itemId: b, noOrder: true });
+    await finishCount(db, { countId: first, employeeId: ava, now: sunday });
+
+    expect((await getCount(db, first))?.lines.map((l) => [l.name, l.noOrder])).toEqual([["Lids", true], ["Vanilla protein", false]]);
+    expect((await reorderList(db)).flatMap((g) => g.lines.map((l) => l.name))).toEqual(["Vanilla protein"]);
+    expect((await stockRows(db)).find((r) => r.id === b)).toMatchObject({ onHand: 0, noOrder: true, low: false });
+
+    const later = new Date(sunday.getTime() + 7 * 86_400_000);
+    const second = await startOrContinueCount(db, { employeeId: ava, now: later });
+    await enterCountLine(db, { countId: second, itemId: b, quantity: 0, employeeId: ava, now: later });
+    await finishCount(db, { countId: second, employeeId: ava, now: later });
+    expect((await reorderList(db)).flatMap((g) => g.lines.map((l) => l.name)).sort()).toEqual(["Lids", "Vanilla protein"]);
+    await expect(setCountLineNoOrder(db, { countId: second, itemId: b, noOrder: true })).rejects.toThrow(/no longer open/);
   });
 
   it("knows when the weekly count is due", async () => {

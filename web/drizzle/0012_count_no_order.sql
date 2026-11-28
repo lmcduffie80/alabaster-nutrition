@@ -1,0 +1,1 @@
+ALTER TABLE "inventory_count_line" ADD COLUMN "no_order" boolean DEFAULT false NOT NULL;
