@@ -1091,7 +1091,16 @@ export type ReorderGroup = {
   supplierId: string | null;
   supplierName: string;
   contact: string;
-  lines: { itemId: string; name: string; unit: string; supplierCode: string | null; onHand: number | null; amount: number }[];
+  lines: {
+    itemId: string;
+    name: string;
+    unit: string;
+    supplierCode: string | null;
+    onHand: number | null;
+    amount: number;
+    /** Per unit, priced like Stock value; null when there's no price yet. */
+    unitCost: number | null;
+  }[];
 };
 
 export async function reorderList(db: Db): Promise<ReorderGroup[]> {
@@ -1112,6 +1121,7 @@ export async function reorderList(db: Db): Promise<ReorderGroup[]> {
       supplierCode: row.supplierCode,
       onHand: row.onHand,
       amount: reorderAmount(row.onHand, row.orderUpTo),
+      unitCost: row.unitCost,
     });
     groups.set(row.supplierId, group);
   }

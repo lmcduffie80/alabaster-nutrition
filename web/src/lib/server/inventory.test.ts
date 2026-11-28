@@ -35,6 +35,7 @@ import {
   type ItemInput,
 } from "./inventory";
 import { schema } from "@/db";
+import { orderCost } from "@/app/manage/inventory/reorder/reorder-editor";
 import { addEmployee } from "./team";
 
 let db: Db;
@@ -240,7 +241,7 @@ describe("stock and reorder", () => {
   it("groups low items by supplier with whole-unit amounts", async () => {
     const sysco = await addSupplier(db, { name: "Sysco", contact: "555-0100", notes: "" });
     const herb = await addSupplier(db, { name: "Herbal Co", contact: "", notes: "" });
-    const a = await addItem(db, item({ supplierId: sysco, supplierCode: "VP-1" }));
+    const a = await addItem(db, item({ supplierId: sysco, supplierCode: "VP-1", defaultUnitCost: "18.5" }));
     const b = await addItem(db, item({ name: "Lids", supplierId: herb }));
     const c = await addItem(db, item({ name: "Straws" }));
     const countId = await startOrContinueCount(db, { employeeId: ava, now: sunday });
@@ -250,11 +251,14 @@ describe("stock and reorder", () => {
     await finishCount(db, { countId, employeeId: ava, now: sunday });
 
     const groups = await reorderList(db);
-    expect(groups.map((g) => [g.supplierName, g.lines.map((l) => [l.name, l.amount, l.supplierCode])])).toEqual([
-      ["Herbal Co", [["Lids", 9, null]]],
-      ["Sysco", [["Vanilla protein", 8, "VP-1"]]],
-      ["No supplier", [["Straws", 10, null]]],
+    expect(groups.map((g) => [g.supplierName, g.lines.map((l) => [l.name, l.amount, l.supplierCode, l.unitCost])])).toEqual([
+      ["Herbal Co", [["Lids", 9, null, null]]],
+      ["Sysco", [["Vanilla protein", 8, "VP-1", 18.5]]],
+      ["No supplier", [["Straws", 10, null, null]]],
     ]);
+    const lines = groups.flatMap((g) => g.lines);
+    expect(orderCost(lines, {})).toEqual({ total: 148, unpriced: 2 });
+    expect(orderCost(lines, { [a]: 2, [b]: 0 })).toEqual({ total: 37, unpriced: 1 });
   });
 
   it("leaves items marked no order needed off the reorder list until the next count", async () => {
