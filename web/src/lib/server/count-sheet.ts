@@ -1,6 +1,6 @@
 import "server-only";
 import type { Db } from "@/db";
-import { addItemToCount, enterCountLines, finishCount } from "./inventory";
+import { addItemToCount, enterCountLines, finishCount, setCountLineNoOrder } from "./inventory";
 import { alertLowStock } from "./low-stock";
 import { siteOrigin } from "./origin";
 
@@ -24,18 +24,24 @@ export async function addCountSheetItem(db: Db, form: FormData, employeeId: stri
 
 /**
  * Saves the count sheet, and finishes the count when its "Save and finish" button sent it.
- * Fields come as `q:<itemId>` (what was typed) and `p:<itemId>` (what the page showed).
+ * Fields come as `q:<itemId>` (what was typed), `p:<itemId>` (what the page showed), and `n:<itemId>`
+ * ("1" or "0") for a "no order needed" box that was changed.
  */
 export async function saveCountSheet(db: Db, form: FormData, employeeId: string) {
   const countId = field(form, "countId");
-  const lines = [...form.keys()]
+  const keys = [...form.keys()];
+  const lines = keys
     .filter((key) => key.startsWith("q:"))
     .map((key) => {
       const itemId = key.slice(2);
       return { itemId, quantity: field(form, key), previous: field(form, `p:${itemId}`) };
     });
   const now = new Date();
-  const saved = await enterCountLines(db, { countId, lines, employeeId, now });
+  let saved = await enterCountLines(db, { countId, lines, employeeId, now });
+  for (const key of keys.filter((k) => k.startsWith("n:"))) {
+    await setCountLineNoOrder(db, { countId, itemId: key.slice(2), noOrder: field(form, key) === "1" });
+    saved += 1;
+  }
   if (field(form, "intent") !== "finish") {
     return { success: saved ? `Saved ${saved} item${saved === 1 ? "" : "s"}.` : "Nothing new to save." };
   }

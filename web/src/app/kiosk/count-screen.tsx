@@ -4,7 +4,7 @@ import { Check, CloudOff, Loader2, Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Button, Card, FramedPanel } from "@/components/ui";
 import { formatQuantity, parseQuantity, round2 } from "@/lib/domain/inventory";
-import { addCountItem, enterCount, finishCounting, type CountScreenView } from "./actions";
+import { addCountItem, enterCount, finishCounting, markNoOrder, type CountScreenView } from "./actions";
 
 type LineState = { value: string; saved: number | null; status: "idle" | "saving" | "saved" | "error"; message?: string };
 
@@ -29,6 +29,7 @@ export function CountScreen({
     Object.fromEntries(view.lines.map((l) => [l.itemId, { value: display(l.quantity), saved: l.quantity, status: "idle" }])),
   );
   const [lines, setLines] = useState(initial);
+  const [noOrder, setNoOrder] = useState<Record<string, boolean>>(() => Object.fromEntries(view.lines.map((l) => [l.itemId, l.noOrder])));
   /** Grows when someone adds an item that wasn't on the list. */
   const [sheet, setSheet] = useState(view);
   const [confirmSkip, setConfirmSkip] = useState(false);
@@ -72,6 +73,22 @@ export function CountScreen({
       update(itemId, { status: "error", message: result.kind === "error" ? result.message : "Not saved" });
     } catch {
       update(itemId, { status: "error", message: "Not saved — tap to retry" });
+    }
+  }
+
+  async function toggleNoOrder(itemId: string) {
+    const next = !noOrder[itemId];
+    setNoOrder((v) => ({ ...v, [itemId]: next }));
+    const undo = (message: string) => {
+      setNoOrder((v) => ({ ...v, [itemId]: !next }));
+      update(itemId, { status: "error", message });
+    };
+    try {
+      const result = await markNoOrder({ countId: view.countId, itemId, noOrder: next });
+      if (result.kind === "expired") return onExpired();
+      if (result.kind !== "noOrderSaved") undo(result.kind === "error" ? result.message : "Not saved");
+    } catch {
+      undo("Not saved — check the Wi-Fi");
     }
   }
 
@@ -149,6 +166,22 @@ export function CountScreen({
                           {line.unit}
                           {line.lastCounted !== null && ` · last count ${formatQuantity(line.lastCounted)}`}
                         </p>
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={Boolean(noOrder[line.itemId])}
+                          onClick={() => void toggleNoOrder(line.itemId)}
+                          className="mt-1.5 flex items-center gap-2 rounded-lg py-1 pr-2 text-sm text-ink/70"
+                        >
+                          <span
+                            className={`flex size-6 items-center justify-center rounded-md border ${
+                              noOrder[line.itemId] ? "border-porcelain bg-porcelain text-white" : "border-ink/25 bg-white"
+                            }`}
+                          >
+                            {noOrder[line.itemId] && <Check className="size-4" />}
+                          </span>
+                          No order needed
+                        </button>
                       </div>
                       <button
                         type="button"

@@ -79,7 +79,14 @@ export default async function CountPage({ params }: PageProps<"/manage/inventory
                 .map((line) => (
                   <div key={line.itemId} className="px-4 py-2 text-sm">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium">{line.name}</span>
+                      <span>
+                        <span className="font-medium">{line.name}</span>
+                        {line.noOrder && (
+                          <span className="ml-2">
+                            <Badge>No order needed</Badge>
+                          </span>
+                        )}
+                      </span>
                       <span className="text-right">
                         {line.quantity === null ? (
                           <Badge tone={finished ? "red" : "neutral"}>{finished ? "Skipped" : "Not counted yet"}</Badge>

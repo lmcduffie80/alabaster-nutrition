@@ -329,6 +329,8 @@ export const inventoryCountLine = pgTable(
     countId: uuid("count_id").notNull(),
     itemId: uuid("item_id").notNull(),
     quantity: quantity("quantity"),
+    /** Checked on the count: leave it off the reorder list and alerts until the next count, however low. */
+    noOrder: boolean("no_order").notNull().default(false),
     enteredBy: uuid("entered_by"),
     enteredAt: timestamp("entered_at", { withTimezone: true }),
   },

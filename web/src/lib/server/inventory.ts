@@ -277,6 +277,7 @@ export type CountLineView = {
   spotName: string;
   lastCounted: number | null;
   quantity: number | null;
+  noOrder: boolean;
   enteredBy: string | null;
   enteredAt: Date | null;
 };
@@ -305,6 +306,7 @@ export async function getCount(db: Db, id: string): Promise<CountView | null> {
         unit: inventoryItem.unit,
         spotName: storageSpot.name,
         quantity: inventoryCountLine.quantity,
+        noOrder: inventoryCountLine.noOrder,
         enteredBy: inventoryCountLine.enteredBy,
         enteredAt: inventoryCountLine.enteredAt,
       })
@@ -384,6 +386,33 @@ export async function enterCountLine(
     .where(and(eq(inventoryCountLine.countId, input.countId), eq(inventoryCountLine.itemId, input.itemId)))
     .returning({ itemId: inventoryCountLine.itemId });
   if (updated.length === 0) throw new UserError("That item isn't on this count.");
+}
+
+export async function setCountLineNoOrder(db: Db, input: { countId: string; itemId: string; noOrder: boolean }) {
+  await requireOpen(db, input.countId);
+  if (!isId(input.itemId)) throw new UserError("That item isn't on this count.");
+  const updated = await db
+    .update(inventoryCountLine)
+    .set({ noOrder: input.noOrder })
+    .where(and(eq(inventoryCountLine.countId, input.countId), eq(inventoryCountLine.itemId, input.itemId)))
+    .returning({ itemId: inventoryCountLine.itemId });
+  if (updated.length === 0) throw new UserError("That item isn't on this count.");
+}
+
+/** Items marked "no order needed" on the most recent finished count. */
+async function noOrderItems(db: Db) {
+  const [latest] = await db
+    .select({ id: inventoryCount.id })
+    .from(inventoryCount)
+    .where(eq(inventoryCount.status, "finished"))
+    .orderBy(desc(inventoryCount.finishedAt))
+    .limit(1);
+  if (!latest) return new Set<string>();
+  const rows = await db
+    .select({ itemId: inventoryCountLine.itemId })
+    .from(inventoryCountLine)
+    .where(and(eq(inventoryCountLine.countId, latest.id), eq(inventoryCountLine.noOrder, true)));
+  return new Set(rows.map((r) => r.itemId));
 }
 
 /**
@@ -989,6 +1018,8 @@ export async function getDelivery(db: Db, id: string): Promise<DeliveryView | nu
 export type StockRow = Item & {
   onHand: number | null;
   lastCountedAt: Date | null;
+  /** Marked "no order needed" on the latest count; never low until the next one. */
+  noOrder: boolean;
   low: boolean;
   /** Per count unit: the latest priced delivery, else the item's default cost. */
   unitCost: number | null;
@@ -1011,7 +1042,13 @@ export async function liveDeliveryLines(db: Db) {
 }
 
 export async function stockRows(db: Db): Promise<StockRow[]> {
-  const [items, counts, lines, { timeZone }] = await Promise.all([listItems(db), lastCounts(db), liveDeliveryLines(db), getBusiness(db)]);
+  const [items, counts, lines, { timeZone }, skipOrder] = await Promise.all([
+    listItems(db),
+    lastCounts(db),
+    liveDeliveryLines(db),
+    getBusiness(db),
+    noOrderItems(db),
+  ]);
   const bases = new Map(
     items.map((item) => {
       const last = counts.get(item.id);
@@ -1042,7 +1079,8 @@ export async function stockRows(db: Db): Promise<StockRow[]> {
       ...item,
       onHand: quantity,
       lastCountedAt: last?.at ?? null,
-      low: isLow(quantity, item.reorderAt),
+      noOrder: skipOrder.has(item.id),
+      low: !skipOrder.has(item.id) && isLow(quantity, item.reorderAt),
       unitCost: cost,
       value: stockValue(quantity, cost),
     };

@@ -12,6 +12,7 @@ import {
   enterCountLine,
   finishCount,
   getCount,
+  setCountLineNoOrder,
   startOrContinueCount,
   type CountLineView,
 } from "@/lib/server/inventory";
@@ -107,12 +108,13 @@ export async function lockManager() {
 
 export type CountScreenView = {
   countId: string;
-  lines: Pick<CountLineView, "itemId" | "name" | "unit" | "spotName" | "lastCounted" | "quantity" | "enteredBy">[];
+  lines: Pick<CountLineView, "itemId" | "name" | "unit" | "spotName" | "lastCounted" | "quantity" | "noOrder" | "enteredBy">[];
 };
 
 export type CountResult =
   | { kind: "counting"; view: CountScreenView }
   | { kind: "saved"; quantity: number | null }
+  | { kind: "noOrderSaved"; noOrder: boolean }
   | { kind: "added"; view: CountScreenView; message: string }
   | { kind: "finished"; skipped: number }
   | { kind: "expired" }
@@ -123,13 +125,14 @@ async function countScreenView(db: Db, countId: string): Promise<CountScreenView
   const count = await getCount(db, countId);
   return {
     countId,
-    lines: (count?.lines ?? []).map(({ itemId, name, unit, spotName, lastCounted, quantity, enteredBy }) => ({
+    lines: (count?.lines ?? []).map(({ itemId, name, unit, spotName, lastCounted, quantity, noOrder, enteredBy }) => ({
       itemId,
       name,
       unit,
       spotName,
       lastCounted,
       quantity,
+      noOrder,
       enteredBy,
     })),
   };
@@ -181,6 +184,20 @@ export async function enterCount(input: { countId: string; itemId: string; quant
     await withKiosk(session.kiosk, (db) => enterCountLine(db, { ...parsed.data, quantity, employeeId: session.employeeId, now }));
     await startCountSession(session.kiosk.id, session.employeeId, now);
     return { kind: "saved", quantity };
+  });
+}
+
+const noOrderSchema = z.object({ countId: z.uuid(), itemId: z.uuid(), noOrder: z.boolean() });
+
+export async function markNoOrder(input: { countId: string; itemId: string; noOrder: boolean }): Promise<CountResult> {
+  const session = await getCountSession();
+  if (!session) return { kind: "expired" };
+  const parsed = noOrderSchema.safeParse(input);
+  if (!parsed.success) return { kind: "error", message: "Something went wrong. Try again." };
+  return asCountResult(async () => {
+    await withKiosk(session.kiosk, (db) => setCountLineNoOrder(db, parsed.data));
+    await startCountSession(session.kiosk.id, session.employeeId, new Date());
+    return { kind: "noOrderSaved", noOrder: parsed.data.noOrder };
   });
 }
 

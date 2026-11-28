@@ -13,6 +13,7 @@ export type SheetLine = {
   name: string;
   unit: string;
   quantity: number | null;
+  noOrder: boolean;
   lastCounted: number | null;
   enteredBy: string | null;
 };
@@ -37,15 +38,18 @@ export function CountSheet({
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [noOrderEdits, setNoOrderEdits] = useState<Record<string, boolean>>({});
   const [savedAt, setSavedAt] = useState<number | undefined>();
   if (state?.success && state.at !== savedAt) {
     setSavedAt(state.at);
     setEdits({});
+    setNoOrderEdits({});
   }
   const all = spots.flatMap((s) => s.lines);
   const valueOf = (line: SheetLine) => edits[line.itemId] ?? asText(line.quantity);
+  const noOrderOf = (line: SheetLine) => noOrderEdits[line.itemId] ?? line.noOrder;
   const filled = all.filter((l) => valueOf(l).trim() !== "").length;
-  const unsaved = all.filter((l) => valueOf(l).trim() !== asText(l.quantity)).length;
+  const unsaved = all.filter((l) => valueOf(l).trim() !== asText(l.quantity) || noOrderOf(l) !== l.noOrder).length;
 
   return (
     <>
@@ -69,7 +73,7 @@ export function CountSheet({
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink/50">{spot.name}</h2>
             <Card className="divide-y divide-ink/5 p-0">
               {spot.lines.map((line) => (
-                <label key={line.itemId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                <div key={line.itemId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
                   <span className="min-w-0">
                     <span className="font-medium">{line.name}</span>
                     <span className="block text-xs text-ink/50">
@@ -77,6 +81,18 @@ export function CountSheet({
                       {line.lastCounted !== null && line.enteredBy && " · "}
                       {line.enteredBy && `Entered by ${line.enteredBy}`}
                     </span>
+                    {noOrderOf(line) !== line.noOrder && (
+                      <input type="hidden" name={`n:${line.itemId}`} value={noOrderOf(line) ? "1" : "0"} />
+                    )}
+                    <label className="mt-1 flex w-fit items-center gap-1.5 text-xs text-ink/60">
+                      <input
+                        type="checkbox"
+                        checked={noOrderOf(line)}
+                        onChange={(e) => setNoOrderEdits((v) => ({ ...v, [line.itemId]: e.target.checked }))}
+                        className="size-4 accent-porcelain"
+                      />
+                      No order needed
+                    </label>
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     {line.itemId in edits && (
@@ -103,7 +119,7 @@ export function CountSheet({
                     />
                     <span className="w-10 text-xs text-ink/50">{line.unit}</span>
                   </span>
-                </label>
+                </div>
               ))}
             </Card>
           </section>
