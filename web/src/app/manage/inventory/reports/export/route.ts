@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { localDateOf } from "@/lib/domain/time";
 import { getBusiness } from "@/lib/server/business";
-import { spendingCsv, spendingReport, stockCsv, usageCsv, usageReport } from "@/lib/server/inventory-reports";
+import { countCsv, spendingCsv, spendingReport, stockCsv, usageCsv, usageReport } from "@/lib/server/inventory-reports";
 import { withManagerOrNull } from "@/lib/server/session";
 
 export async function GET(request: NextRequest) {
@@ -22,6 +22,13 @@ export async function GET(request: NextRequest) {
         const by = query.get("by") === "month" ? "month" : "week";
         body = spendingCsv(await spendingReport(db, by, now), by);
         filename = `alabaster-spending-by-${by}.csv`;
+        break;
+      }
+      case "count": {
+        const sheet = await countCsv(db, query.get("count") ?? "");
+        if (!sheet) return new Response("No such count", { status: 404 });
+        body = sheet.body;
+        filename = `alabaster-count-${sheet.countedOn}.csv`;
         break;
       }
       case "stock": {
